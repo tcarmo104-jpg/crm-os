@@ -35,6 +35,10 @@ describe('firma de Meta (X-Hub-Signature-256)', () => {
     expect(verifySignature(body, signBody(body, 'corto'), 'corto')).toBe(false);
     expect(verifySignature(body, signBody(body, SECRET), undefined)).toBe(false);
   });
+  it('un espacio o salto de línea invisible en el secreto guardado (al copiar/pegar) no rompe la firma', () => {
+    expect(verifySignature(body, signBody(body, SECRET), SECRET + '\n')).toBe(true);
+    expect(verifySignature(body, signBody(body, SECRET), '  ' + SECRET + ' ')).toBe(true);
+  });
   it('la firma depende de los BYTES exactos (acentos, espacios)', () => {
     const a = '{"t":"Compañía"}';
     expect(verifySignature(a, signBody(a, SECRET), SECRET)).toBe(true);
@@ -50,6 +54,13 @@ describe('verificación del webhook (GET)', () => {
     expect(verifyChallenge(q({ 'hub.mode': 'unsubscribe', 'hub.verify_token': 'token-largo-123', 'hub.challenge': '1' }), 'token-largo-123')).toBeNull();
     expect(verifyChallenge(q({ 'hub.mode': 'subscribe', 'hub.verify_token': 'token-largo-123' }), 'token-largo-123')).toBeNull();
     expect(verifyChallenge(q({ 'hub.mode': 'subscribe', 'hub.challenge': '1' }), 'token-largo-123')).toBeNull();
+  });
+  it('un espacio o salto de línea invisible en el token guardado (al pegar en Vercel) no rompe el saludo', () => {
+    const p = q({ 'hub.mode': 'subscribe', 'hub.verify_token': 'Arkos2025*', 'hub.challenge': '12345' });
+    expect(verifyChallenge(p, 'Arkos2025*')).toBe('12345');
+    expect(verifyChallenge(p, 'Arkos2025* ')).toBe('12345');
+    expect(verifyChallenge(p, 'Arkos2025*\n')).toBe('12345');
+    expect(verifyChallenge(p, 'arkos2025*')).toBeNull();                       // sigue distinguiendo mayúsculas
   });
   it('sin token configurado (o corto) no verifica; y un challenge con caracteres raros se rechaza (no se refleja)', () => {
     expect(verifyChallenge(q({ 'hub.mode': 'subscribe', 'hub.verify_token': 'x', 'hub.challenge': '1' }), undefined)).toBeNull();

@@ -12,7 +12,11 @@ const MAX_BODY_BYTES = 1024 * 1024;
 /** GET: Meta verifica la URL al configurarla (handshake con hub.challenge). */
 export async function GET(req: Request) {
   const challenge = verifyChallenge(new URL(req.url).searchParams, process.env.META_VERIFY_TOKEN);
-  if (challenge === null) return new NextResponse('forbidden', { status: 403 });
+  if (challenge === null) {
+    // Diagnóstico para los registros de Vercel (nunca se imprime ningún valor secreto).
+    console.warn(JSON.stringify({ msg: 'meta_verify_rejected', token_configured: Boolean(process.env.META_VERIFY_TOKEN?.trim()) }));
+    return new NextResponse('forbidden', { status: 403 });
+  }
   return new NextResponse(challenge, { status: 200, headers: { 'Content-Type': 'text/plain' } });
 }
 
@@ -22,7 +26,7 @@ export async function GET(req: Request) {
  * lo reintenta; si ni siquiera se pudo guardar, se responde 500 para que Meta reintente.
  */
 export async function POST(req: Request) {
-  const secret = process.env.META_APP_SECRET;
+  const secret = process.env.META_APP_SECRET?.trim();
   if (!secret) {
     console.error(JSON.stringify({ msg: 'meta_webhook_not_configured' }));
     return NextResponse.json({ error: 'not_configured' }, { status: 503 });

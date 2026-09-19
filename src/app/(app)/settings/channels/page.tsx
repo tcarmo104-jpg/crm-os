@@ -17,8 +17,8 @@ export default async function ChannelsPage() {
   const db = await createClient();
   const [channels, tokens, templates, flash] = await Promise.all([listChannels(db, org.orgId), channelTokenStatus(db, org.orgId), listTemplates(db, org.orgId), readFlash()]);
   const webhook = `${siteUrl()}/api/webhooks/meta`;
-  const secretOk = Boolean(process.env.META_APP_SECRET);
-  const verifyOk = Boolean(process.env.META_VERIFY_TOKEN);
+  const secretOk = Boolean(process.env.META_APP_SECRET?.trim());
+  const verifyOk = Boolean(process.env.META_VERIFY_TOKEN?.trim());
 
   return (
     <>

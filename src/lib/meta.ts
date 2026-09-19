@@ -9,7 +9,8 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
  * Meta firma el CUERPO CRUDO con HMAC-SHA256 y el App Secret, en `X-Hub-Signature-256: sha256=<hex>`.
  * Comparación en tiempo constante. Sin secreto configurado NADA es válido (nunca se acepta sin firma).
  */
-export function verifySignature(rawBody: string, header: string | null | undefined, secret: string | undefined): boolean {
+export function verifySignature(rawBody: string, header: string | null | undefined, rawSecret: string | undefined): boolean {
+  const secret = rawSecret?.trim();                       // un espacio o salto de línea invisible al pegar en Vercel no debe romper la firma
   if (!secret || secret.length < 8 || !header) return false;
   const m = /^sha256=([0-9a-fA-F]{64})$/.exec(header.trim());
   if (!m) return false;
@@ -24,10 +25,11 @@ export function signBody(rawBody: string, secret: string): string {
 }
 
 /** GET de verificación: Meta envía hub.mode=subscribe, hub.verify_token y hub.challenge. */
-export function verifyChallenge(params: URLSearchParams, verifyToken: string | undefined): string | null {
+export function verifyChallenge(params: URLSearchParams, rawVerifyToken: string | undefined): string | null {
   const mode = params.get('hub.mode');
-  const token = params.get('hub.verify_token');
+  const token = params.get('hub.verify_token')?.trim();
   const challenge = params.get('hub.challenge');
+  const verifyToken = rawVerifyToken?.trim();              // mismo motivo: espacios/saltos invisibles al pegar en Vercel
   if (mode !== 'subscribe' || !challenge || !token || !verifyToken || verifyToken.length < 8) return null;
   const a = Buffer.from(token);
   const b = Buffer.from(verifyToken);
