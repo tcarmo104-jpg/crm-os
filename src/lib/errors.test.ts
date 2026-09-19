@@ -53,4 +53,19 @@ describe('unwrap', () => {
     const m = toUserMessage(new DbError({ message: 'insert into customer_identifiers violates x', code: '99999' }));
     expect(m).not.toMatch(/customer_identifiers|insert/i);
   });
+
+  it('traduce los errores de cotizaciones y ventas', () => {
+    const e = (message: string, code?: string) => toUserMessage(new DbError({ message, code }));
+    expect(e('discount_requires_approval', '42501')).toMatch(/manager/);
+    expect(e('quote_locked', '23514')).toMatch(/nueva versión/);
+    expect(e('window_closed', '23514')).toMatch(/24 horas/);
+    expect(e('do_not_contact', '23514')).toMatch(/no ser contactado/);
+    expect(e('channel_paused', '23514')).toMatch(/en pausa/);
+    expect(e('template_params', '22023')).toMatch(/datos de la plantilla/);
+    expect(e('message_empty', '22023')).toMatch(/Escribe el mensaje/);
+    expect(e('duplicate key value violates unique constraint "quotes_one_accepted_uk"', '23505')).toMatch(/ya tiene una cotización aceptada/);
+    expect(e('duplicate key value violates unique constraint "products_sku_uk"', '23505')).toMatch(/SKU/);
+    expect(e('sale_already_exists', '23505')).toMatch(/ya tiene una venta/);
+    expect(e('only managers can cancel sales', '42501')).toMatch(/anular/);
+  });
 });

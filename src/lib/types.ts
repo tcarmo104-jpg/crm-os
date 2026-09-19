@@ -169,7 +169,7 @@ export interface OpportunityRow {
 }
 
 export interface TransitionRow {
-  id: string; entityType: 'lead' | 'opportunity'; entityId: string; fromState: string | null; toState: string;
+  id: string; entityType: 'lead' | 'opportunity' | 'quote' | 'sale' | 'case'; entityId: string; fromState: string | null; toState: string;
   actorId: string | null; source: string; reason: string | null; occurredAt: string;
 }
 
@@ -183,4 +183,52 @@ export interface TaskRow {
 export interface ActivityRow {
   id: string; customerId: string; opportunityId: string | null; type: string; direction: string | null;
   summary: string; occurredAt: string; createdBy: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Fase 4: catálogo, cotizaciones, ventas, casos
+// ---------------------------------------------------------------------------
+export interface ProductRow {
+  id: string; kind: 'product' | 'service'; sku: string | null; name: string; description: string | null;
+  unit: string; unitPrice: number; taxRate: number; active: boolean;
+}
+
+export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'rejected' | 'superseded';
+export interface QuoteRow {
+  id: string; number: string; version: number; opportunityId: string; customerId: string; status: QuoteStatus;
+  currency: string | null; validUntil: string | null; notes: string | null; subtotal: number; discountTotal: number;
+  taxTotal: number; total: number; maxDiscountPct: number; ownerId: string | null; sentAt: string | null; createdAt: string;
+}
+export interface LineItem {
+  id: string; position: number; productId: string | null; description: string; unit: string; quantity: number;
+  unitPrice: number; discountPct: number; taxRate: number; lineGross: number; lineDiscount: number; lineTax: number; lineTotal: number;
+}
+
+export type SaleStatus = 'confirmed' | 'delivered' | 'cancelled';
+export interface SaleRow {
+  id: string; number: string; customerId: string; opportunityId: string; quoteId: string; status: SaleStatus;
+  currency: string | null; subtotal: number; discountTotal: number; taxTotal: number; total: number;
+  soldAt: string; deliveredAt: string | null; cancelledAt: string | null; cancelReason: string | null; ownerId: string | null;
+}
+
+export type CaseStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
+export interface CaseRow {
+  id: string; number: string; customerId: string; saleId: string | null; kind: string; priority: string; status: CaseStatus;
+  title: string; description: string | null; resolution: string | null; assigneeId: string | null; createdAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Fase 5: bandeja (WhatsApp)
+// ---------------------------------------------------------------------------
+export interface ChannelRow { id: string; kind: 'whatsapp'; name: string; externalId: string; displayPhone: string | null; status: 'active' | 'paused' }
+export interface TemplateRow { id: string; channelId: string; name: string; language: string; body: string; paramCount: number; status: 'approved' | 'disabled' }
+export interface ConversationRow {
+  id: string; channelId: string; customerId: string; threadKey: string; contactName: string | null; status: 'open' | 'closed';
+  ownerId: string | null; lastMessageAt: string | null; lastInboundAt: string | null; lastMessagePreview: string | null;
+  lastDirection: 'inbound' | 'outbound' | null; needsReply: boolean; unread: boolean;
+}
+export type MessageStatus = 'received' | 'queued' | 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+export interface MessageRow {
+  id: string; direction: 'inbound' | 'outbound'; kind: 'text' | 'template' | 'media' | 'other'; body: string; status: MessageStatus;
+  error: string | null; errorCode: string | null; sentBy: string | null; occurredAt: string;
 }

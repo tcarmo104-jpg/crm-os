@@ -64,6 +64,30 @@ export function describeEvent(e: TimelineEvent, personName: (id: string | null |
       const dir = p.direction === 'inbound' ? ' (entrante)' : p.direction === 'outbound' ? ' (saliente)' : '';
       return { title: `${kind}${dir}`, detail: s(p.summary) };
     }
+    case 'conversation.opened':
+      return { title: 'Escribió por WhatsApp por primera vez' };
+    case 'conversation.reopened':
+      return { title: 'El cliente volvió a escribir por WhatsApp' };
+    case 'quote.created':
+      return { title: 'Cotización creada', detail: s(p.number) };
+    case 'quote.sent':
+      return { title: 'Cotización enviada', detail: s(p.number) };
+    case 'quote.accepted':
+      return { title: '✔ Cotización aceptada', detail: s(p.number) };
+    case 'quote.rejected':
+      return { title: 'Cotización rechazada', detail: [s(p.number), s(p.reason) ? `Motivo: ${s(p.reason)}` : null].filter(Boolean).join(' · ') || undefined };
+    case 'sale.created':
+      return { title: '🎉 Venta registrada', detail: s(p.number) };
+    case 'sale.delivered':
+      return { title: 'Venta entregada', detail: s(p.number) };
+    case 'sale.cancelled':
+      return { title: 'Venta anulada', detail: [s(p.number), s(p.reason) ? `Motivo: ${s(p.reason)}` : null].filter(Boolean).join(' · ') || undefined };
+    case 'case.opened':
+      return { title: 'Caso abierto', detail: [s(p.number), s(p.title)].filter(Boolean).join(' · ') || undefined };
+    case 'case.status_changed': {
+      const L: Record<string, string> = { open: 'abierto', in_progress: 'en curso', resolved: 'resuelto', closed: 'cerrado' };
+      return { title: `Caso ${L[s(p.to) ?? ''] ?? s(p.to) ?? ''}`, detail: s(p.number) };
+    }
     default:
       return { title: e.type };
   }

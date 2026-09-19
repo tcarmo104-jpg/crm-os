@@ -50,11 +50,11 @@ export async function updateOpportunity(db: ServerSupabase, id: string, fields: 
   unwrap(await db.from('opportunities').update(fields).eq('id', id).select('id').single());
 }
 
-export async function listTransitions(db: ServerSupabase, entityType: 'lead' | 'opportunity', entityId: string): Promise<TransitionRow[]> {
+export async function listTransitions(db: ServerSupabase, entityType: 'lead' | 'opportunity' | 'quote' | 'sale' | 'case', entityId: string): Promise<TransitionRow[]> {
   const rows = unwrap(
     await db.from('state_transitions').select('id, entity_type, entity_id, from_state, to_state, actor_id, source, reason, occurred_at')
       .eq('entity_type', entityType).eq('entity_id', entityId).order('occurred_at', { ascending: false }).order('id', { ascending: false }).limit(100),
-  ) as { id: string; entity_type: 'lead' | 'opportunity'; entity_id: string; from_state: string | null; to_state: string; actor_id: string | null; source: string; reason: string | null; occurred_at: string }[];
+  ) as { id: string; entity_type: TransitionRow['entityType']; entity_id: string; from_state: string | null; to_state: string; actor_id: string | null; source: string; reason: string | null; occurred_at: string }[];
   return rows.map((r) => ({
     id: r.id, entityType: r.entity_type, entityId: r.entity_id, fromState: r.from_state, toState: r.to_state,
     actorId: r.actor_id, source: r.source, reason: r.reason, occurredAt: r.occurred_at,

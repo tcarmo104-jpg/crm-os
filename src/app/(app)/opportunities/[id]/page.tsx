@@ -12,6 +12,9 @@ import { getOpportunity, listTransitions } from '@/repositories/opportunities';
 import { listPipelines } from '@/repositories/pipelines';
 import { listTasks } from '@/repositories/tasks';
 import { listActivities } from '@/repositories/activities';
+import { listQuotes } from '@/repositories/quotes';
+import { QUOTE_STATUS } from '@/lib/commerce-labels';
+import { createQuoteAction } from '../../quotes/actions';
 import { listMembers } from '@/repositories/members';
 import { listFieldDefinitions } from '@/repositories/custom-fields';
 import { uuidSchema } from '@/services/schemas';
@@ -35,7 +38,7 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
   const opp = await getOpportunity(db, id);
   if (!opp) notFound();
 
-  const [customer, transitions, tasks, acts, members, defs, pipelines, flash] = await Promise.all([
+  const [customer, transitions, tasks, acts, members, defs, pipelines, flash, quotePage] = await Promise.all([
     getCustomer(db, opp.customerId),
     listTransitions(db, 'opportunity', id),
     listTasks(db, { orgId: org.orgId, opportunityId: id, status: 'open' }),
@@ -44,6 +47,7 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
     listFieldDefinitions(db, org.orgId, 'opportunity'),
     listPipelines(db, org.orgId, true),
     readFlash(),
+    can(session, 'quotes:read') ? listQuotes(db, { orgId: org.orgId, opportunityId: id, limit: 50 }) : Promise.resolve({ items: [], nextCursor: null }),
   ]);
   const pipeline = pipelines.find((p) => p.id === opp.pipelineId);
   const stages = pipeline ? orderedStages(pipeline.stages) : [];
@@ -109,6 +113,26 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
               </form>
             </section>
           ) : null}
+
+          <section className="panel" aria-labelledby="quotes-title">
+            <div className="panel-head">
+              <h2 id="quotes-title">Cotizaciones ({quotePage.items.length})</h2>
+              {opp.status === 'open' && can(session, 'quotes:create') ? (
+                <form action={createQuoteAction}><input type="hidden" name="opportunityId" value={opp.id} /><button className="btn btn-secondary btn-sm" type="submit">Nueva cotización</button></form>
+              ) : null}
+            </div>
+            {quotePage.items.length === 0 ? <p className="muted">Aún no hay cotizaciones para esta oportunidad.</p> : (
+              <ul className="id-list">
+                {quotePage.items.map((qt) => (
+                  <li key={qt.id}>
+                    <span><Link href={`/quotes/${qt.id}`}><strong>{qt.number}{qt.version > 1 ? ` v${qt.version}` : ''}</strong></Link>{' '}
+                      <span className={`badge ${QUOTE_STATUS[qt.status]?.[1] ?? ''}`}>{QUOTE_STATUS[qt.status]?.[0] ?? qt.status}</span></span>
+                    <span>{formatMoney(qt.total, qt.currency, org.orgLocale)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
 
           <section className="panel" aria-labelledby="edit-title">
             <div className="panel-head"><h2 id="edit-title">Datos</h2></div>

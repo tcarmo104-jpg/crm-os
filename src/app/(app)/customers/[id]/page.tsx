@@ -16,6 +16,10 @@ import { formatMoney } from '@/lib/money';
 import { TASK_TYPE_LABEL, CONTACT_TASK_TYPES } from '@/lib/tasks';
 import { LogActivityForm, NewTaskForm } from '@/components/sales-forms';
 import { completeTaskAction } from '../../tasks/actions';
+import { listSales, listCases } from '@/repositories/sales';
+import { NewCaseForm } from '@/components/commerce-forms';
+import { listConversations } from '@/repositories/inbox';
+import { SALE_STATUS, CASE_STATUS, CASE_KIND } from '@/lib/commerce-labels';
 import { uuidSchema } from '@/services/schemas';
 import { ConfirmButton, Notice } from '@/components/ui';
 import { AddIdentifierForm, DncForm, EditProfileForm, OwnerForm } from '@/components/customer-forms';
@@ -37,7 +41,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
   const customer = await getCustomer(db, id);
   if (!customer) notFound();
 
-  const [identifiers, events, leads, members, defs, companies, flash, opps, tasks, pipelines] = await Promise.all([
+  const [identifiers, events, leads, members, defs, companies, flash, opps, tasks, pipelines, salesPage, cases, convPage] = await Promise.all([
     listIdentifiers(db, [id]),
     timeline(db, id, 50),
     listLeads(db, { orgId: org.orgId, customerId: id, limit: 20 }),
@@ -48,6 +52,9 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
     can(session, 'opportunities:read') ? listOpportunities(db, { orgId: org.orgId, customerId: id, limit: 50 }) : Promise.resolve([]),
     can(session, 'tasks:read') ? listTasks(db, { orgId: org.orgId, customerId: id, status: 'open', limit: 50 }) : Promise.resolve([]),
     listPipelines(db, org.orgId, true),
+    can(session, 'sales:read') ? listSales(db, { orgId: org.orgId, customerId: id, limit: 50 }) : Promise.resolve({ items: [], nextCursor: null }),
+    can(session, 'cases:read') ? listCases(db, { orgId: org.orgId, customerId: id, limit: 50 }) : Promise.resolve([]),
+    can(session, 'conversations:read') ? listConversations(db, { orgId: org.orgId, filter: 'open', customerId: id, limit: 10 }) : Promise.resolve({ items: [], nextCursor: null }),
   ]);
   const stageName = new Map(pipelines.flatMap((p) => p.stages.map((s) => [s.id, s.name] as const)));
   const back = `/customers/${id}`;
@@ -154,6 +161,47 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
             )}
           </section>
 
+          <section className="panel" aria-labelledby="conv-title">
+            <div className="panel-head"><h2 id="conv-title">Conversaciones ({convPage.items.length})</h2></div>
+            {convPage.items.length === 0 ? <p className="muted">Este cliente no ha escrito por WhatsApp.</p> : (
+              <ul className="id-list">
+                {convPage.items.map((cv) => (
+                  <li key={cv.id}><span><Link href={`/inbox/${cv.id}`}><strong>WhatsApp · +{cv.threadKey}</strong></Link>{cv.needsReply ? <> <span className="badge badge-warn">Sin responder</span></> : null}<br /><span className="small muted">{cv.lastMessagePreview}</span></span>
+                    <span className={`badge ${cv.status === 'open' ? 'badge-ok' : ''}`}>{cv.status === 'open' ? 'Abierta' : 'Cerrada'}</span></li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="panel" aria-labelledby="sales-title">
+            <div className="panel-head"><h2 id="sales-title">Ventas ({salesPage.items.length})</h2></div>
+            {salesPage.items.length === 0 ? <p className="muted">Este cliente aún no tiene ventas.</p> : (
+              <ul className="id-list">
+                {salesPage.items.map((sv) => (
+                  <li key={sv.id}>
+                    <span><Link href={`/sales/${sv.id}`}><strong>{sv.number}</strong></Link>{' '}<span className={`badge ${SALE_STATUS[sv.status]?.[1] ?? ''}`}>{SALE_STATUS[sv.status]?.[0] ?? sv.status}</span></span>
+                    <span>{formatMoney(sv.total, sv.currency, org.orgLocale)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="panel" aria-labelledby="cases-title">
+            <div className="panel-head"><h2 id="cases-title">Casos de postventa ({cases.length})</h2></div>
+            {cases.length === 0 ? <p className="muted">Sin casos.</p> : (
+              <ul className="id-list">
+                {cases.map((cs) => (
+                  <li key={cs.id}><span><strong>{cs.number}</strong> · {cs.title} <span className="small muted">({CASE_KIND[cs.kind] ?? cs.kind})</span></span>
+                    <span className={`badge ${CASE_STATUS[cs.status]?.[1] ?? ''}`}>{CASE_STATUS[cs.status]?.[0] ?? cs.status}</span></li>
+                ))}
+              </ul>
+            )}
+            {can(session, 'cases:create') ? (
+              <details><summary>Abrir un caso</summary><NewCaseForm customerId={customer.id} sales={salesPage.items.filter((sv) => sv.status !== 'cancelled').map((sv) => ({ id: sv.id, number: sv.number }))} /></details>
+            ) : null}
+          </section>
+
           <section className="panel" aria-labelledby="tasks-title">
             <div className="panel-head"><h2 id="tasks-title">Tareas pendientes ({tasks.length})</h2></div>
             {tasks.length === 0 ? <p className="muted">No hay tareas pendientes para este cliente.</p> : tasks.map((t) => (
@@ -218,7 +266,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
                 })}
               </ol>
             )}
-            <p className="hint">Cotizaciones, ventas y conversaciones aparecerán aquí cuando se habiliten sus módulos (Fases 4 y 5).</p>
+            <p className="hint">Las conversaciones de WhatsApp, Instagram y correo aparecerán aquí cuando se habilite el Inbox (Fase 5).</p>
           </section>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatMoney, parseAmount } from './money';
+import { formatMoney, parseAmount, parsePercent, parseQuantity } from './money';
 
 describe('parseAmount', () => {
   it('formatos habituales en español e inglés', () => {
@@ -28,3 +28,19 @@ describe('formatMoney', () => {
     expect(() => formatMoney(10, 'xx')).not.toThrow();
   });
 });
+
+describe('parsePercent / parseQuantity', () => {
+  it('porcentajes', () => {
+    expect(parsePercent('19')).toBe(19);
+    expect(parsePercent('19,5 %')).toBe(19.5);
+    expect(parsePercent('0')).toBe(0);
+    for (const bad of ['', 'abc', '101', '-1', '5%%%']) expect(parsePercent(bad), bad).toBeNull();
+  });
+  it('cantidades', () => {
+    expect(parseQuantity('2')).toBe(2);
+    expect(parseQuantity('2,5')).toBe(2.5);
+    expect(parseQuantity('0.3339')).toBe(0.334);
+    for (const bad of ['', '0', '-3', 'x', '2000000']) expect(parseQuantity(bad), bad).toBeNull();
+  });
+});
+

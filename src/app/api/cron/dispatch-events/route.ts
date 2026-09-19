@@ -2,6 +2,9 @@ import { isAuthorizedCron } from '@/server/auth-secret';
 import { dispatchEvents } from '@/server/events/dispatcher';
 import { registry } from '@/server/events/handlers';
 import { createSupabaseEventStore } from '@/server/events/supabase-store';
+import { createAdminClient } from '@/server/supabase-admin';
+import { sweepWebhooks } from '@/server/inbound';
+import { sweepOutbound } from '@/server/outbound';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -17,7 +20,12 @@ async function run(request: Request) {
   }
   try {
     const summary = await dispatchEvents(createSupabaseEventStore(), registry);
-    return Response.json({ ok: true, ...summary });
+    // Bandeja: reintenta webhooks pendientes y envíos encolados (cada parte es independiente y no tumba a las demás).
+    const admin = createAdminClient();
+    const inbox: { webhooks?: unknown; outbound?: unknown } = {};
+    try { inbox.webhooks = await sweepWebhooks(admin); } catch (e) { console.error(JSON.stringify({ msg: 'sweep_webhooks_failed', error: e instanceof Error ? e.message : String(e) })); }
+    try { inbox.outbound = await sweepOutbound(admin); } catch (e) { console.error(JSON.stringify({ msg: 'sweep_outbound_failed', error: e instanceof Error ? e.message : String(e) })); }
+    return Response.json({ ok: true, ...summary, inbox });
   } catch (e) {
     console.error(JSON.stringify({ msg: 'dispatch_failed', error: e instanceof Error ? e.message : String(e) }));
     return Response.json({ ok: false, error: 'dispatch_failed' }, { status: 500 });

@@ -101,8 +101,8 @@ Asíncrona, registrada, con salida JSON estructurada y nivel de confianza (confi
 | **1b** | Invitaciones, app Next.js (login, selector de organización, menú lateral, miembros, equipos), endpoint de eventos, CI | ✅ construido (ver §13 para lo verificado y lo pendiente) |
 | **2** | Customer 360, Identity Resolution, captura de leads (CSV y API con llave), *do-not-contact*, campos personalizados, revisión y fusión de duplicados | ✅ construido (ver §14 para lo verificado y lo pendiente) |
 | **3** | Pipelines, oportunidades, tareas/actividades, log de transiciones de estado | ✅ construido (ver §15 para lo verificado y lo pendiente) |
-| 4 | Productos, cotizaciones, ventas, postventa | |
-| 5 | **Inbox mínimo + WhatsApp/Meta** *(adelantado)* | |
+| **4** | Productos, cotizaciones, ventas, postventa | ✅ construido y verificado (ver §16) |
+| **5** | **Inbox mínimo + WhatsApp/Meta** *(adelantado)* | ✅ construido (ver §17; **sin probar contra Meta real**) |
 | 6 | Motor de asignación, lead scoring, SLA | |
 | 7 | Sales Execution Engine (Next Best Action) + secuencias | |
 | 8 | Automation Builder | |
@@ -239,4 +239,89 @@ Implementada en la migración `0004` y fijada por pruebas (una prueba falla si o
 4. **Analítica del embudo:** los datos (`state_transitions.meta`) ya están; los reportes llegan en la Fase 10.
 5. Tareas recurrentes, subtareas y recordatorios: fuera de alcance por ahora.
 6. Pipelines: el orden de etapas se cambia con ↑/↓; falta reordenar por arrastre y una vista de pipeline por equipo.
+
+---
+
+## 16. Fase 4 — catálogo, cotizaciones, ventas y postventa
+
+**Qué se construyó** (migraciones `0011` y `0012`; 29 tablas, todas con RLS)
+- **Catálogo:** tabla única `products` con `kind` (producto/servicio), SKU único sin distinguir mayúsculas, precio, IVA, activo/inactivo. El tipo es inmutable; no se borra, se desactiva.
+- **Cotizaciones** (`quotes` + `quote_items`): numeración correlativa por organización (`COT-0001`) con un contador atómico; **el dinero se calcula solo en la base de datos** (`numeric`, redondeo por línea a 2 decimales; nadie puede escribir totales); cada línea guarda una **foto** del producto (nombre, precio, IVA); una cotización **enviada es inmutable** (cambiar = nueva versión, la anterior queda «reemplazada»); una sola aceptada por oportunidad; vigencia (no se acepta vencida); **descuentos sobre el límite de la organización** (`settings.quote_discount_limit_pct`, 10 % por defecto) solo los envía un manager/admin.
+- **Ventas** (`sales` + `sale_items`): nacen solo de una cotización **aceptada** con una copia inmutable (líneas y totales); registrarla cierra la oportunidad como **ganada** por el valor neto (sin IVA) y abre **3 tareas de seguimiento** (confirmar entrega +3 días, satisfacción +10, recompra +60) para el responsable del cliente (sin asignar si no tiene dueño; avisa si pidió no ser contactado). Una cotización tiene como máximo una venta activa. Anular exige manager/admin y un motivo, y cancela el seguimiento pendiente.
+- **Casos** (`cases`): soporte, reclamo, garantía, devolución, pregunta; estados abierto → en curso → resuelto → cerrado; resolver exige la solución; reabrir un cerrado exige manager.
+- **Historial:** `state_transitions` ahora cubre cotizaciones, ventas y casos con un trigger genérico (`app.log_status_change`). Todo movimiento de estado pasa por RPC; ningún estado ni monto es escribible directamente.
+- **Interfaz:** Productos y servicios, Cotizaciones (detalle con edición de líneas en borrador y vista imprimible), Ventas, Casos de postventa; secciones nuevas en la oportunidad y en el cliente; la línea de tiempo del cliente narra todo lo anterior.
+
+**Decisiones**
+- **Quién registra una venta:** hoy la matriz de permisos de la Fase 1 da `sales:create` solo a manager, admin y sales manager; **un vendedor no puede registrar ventas** (sí cotizar y marcar la aceptación). Es una decisión de negocio, no un accidente: una prueba la fija para que cambiarla sea deliberado. Para permitirlo a los vendedores basta agregar `sales:create` y `sales:update` con alcance `own` a `sales_agent` (un `INSERT` en `role_permissions`; `create_sale` ya respeta el alcance).
+- El valor de la oportunidad ganada es el **neto sin impuestos** (subtotal − descuentos).
+- Una venta anulada **no reabre** la oportunidad (queda ganada; un manager puede reabrirla) y permite volver a vender la misma cotización.
+- Las cotizaciones abiertas (borrador y enviadas) **siguen al cliente** cuando se reasigna, como leads, oportunidades y tareas; las aceptadas y las ventas conservan su propietario.
+- Los casos se asignan por defecto a **quien los abre**, no al dueño comercial del cliente (así servicio al cliente ve lo que abre con su alcance `own`).
+
+**Verificado**
+- **SQL:** 143 aserciones nuevas (cotizaciones 76, ventas/postventa/casos 67), incluidas regresiones de `NULL` en accesos sobre oportunidades sin dueño.
+- **Concurrencia real:** 40 cotizaciones creadas a la vez → 40 números distintos, del 1 al 40, sin huecos; 10 personas registrando **la misma venta** a la vez → una sola venta y un solo juego de 3 tareas.
+- **Mutaciones SQL:** 18 defectos inyectados (numeración que no incrementa, descuentos sin aprobación, IVA sobre bruto, líneas editables tras enviar, dos cotizaciones aceptadas, aceptar vencida, versión sin copiar líneas, RLS abierta en cotizaciones/productos/casos, venta sin cotización aceptada, total de venta modificable, líneas de venta editables, anulación por sales manager, seguimiento sin asignar o sin cancelar, oportunidad sin cerrar, reapertura sin permiso). **Las 18 detectadas.** Se descartaron dos candidatas por ser *equivalentes* (el índice único y la comprobación explícita cubren lo mismo; el `CHECK` de la solución cubre la validación del texto).
+- **Integración contra PostgREST real:** 13 pruebas nuevas (47 en total) con los mismos repositorios y servicios de la app y JWT reales.
+- **Unitarias:** 130 (`parsePercent`, `parseQuantity`, servicios de comercio, línea de tiempo, errores en español). `tsc` limpio; `next build` correcto con las 6 rutas nuevas.
+- **Instaladores:** `setup-all.sql` en una base vacía y `setup-desde-0011.sql` sobre una base con 0001–0010 dan `LISTO` (29 tablas, 29 con RLS); el incremental se niega a ejecutarse dos veces o sin la Fase 3.
+- **Errores propios corregidos al ejecutar:** una restricción que habría rechazado «rechazada → reemplazada», un bloqueo de líneas que habría impedido borrar una organización con cotizaciones enviadas, una aserción vacía (comparaba `NULL` con `NULL`) y varias expectativas de prueba mal calculadas.
+- **Trazabilidad:** el resumen de la sesión anterior describía trabajo de Fase 4 que **no estaba en el directorio del proyecto**; se reconstruyó y se verificó de nuevo desde cero.
+
+**NO verificado todavía**
+- Nada de la Fase 4 se ha ejecutado contra el **proyecto Supabase real** de despliegue ni se ha abierto en un navegador (no hay navegador en el entorno de desarrollo): los formularios con `<details>`, la vista de impresión y el detalle de cotización necesitan revisión visual y de accesibilidad. No hay pruebas end-to-end.
+- No hay **PDF generado en servidor**: se imprime desde el navegador. Tampoco hay envío de la cotización por correo/WhatsApp (llega con el Inbox, Fase 5).
+
+**Deuda conocida (priorizada)**
+1. Pagos y facturación (la venta no registra cobros ni emite factura).
+2. Envío de cotizaciones por canal y firma/aceptación por el propio cliente (hoy la marca quien vende).
+3. Listas de precios, monedas por producto, inventario, paquetes y descuentos por volumen.
+4. Vencimiento **automático** de cotizaciones (hoy se calcula al mostrar y se exige al aceptar).
+5. Casos: SLA, asignación automática, comentarios y adjuntos.
+6. Reportes de ventas y postventa (Fase 10).
+
+## 17. Fase 5 — Inbox y WhatsApp (API de Meta)
+
+**Qué se construyó** (migración `0013`; 35 tablas, todas con RLS)
+- **Flujo de entrada:** webhook → **firma verificada** (HMAC-SHA256 del cuerpo *crudo* con el App Secret, en tiempo constante; sin secreto configurado se rechaza todo) → `raw_events` (**se guarda antes de procesar**) → normalización (`src/lib/meta.ts`, puro y tolerante a payloads malformados) → `ingest_whatsapp_message` → conversación → mensaje. Si algo falla al procesar, el evento queda pendiente y un barrido lo reintenta (máx. 8 veces; los procesados se purgan a los 30 días). Si ni siquiera se pudo guardar, la ruta responde 500 para que Meta reintente.
+- **Identidad:** un contacto desconocido nace como **cliente + lead** (origen `whatsapp`) reutilizando `resolve_customer`/`ingest_lead_core` de la Fase 2 (mismos bloqueos y detección de duplicados); uno conocido se enlaza por su teléfono (`+` + `wa_id`). La conversación **sigue al dueño del cliente** cuando se reasigna (abiertas y cerradas) y se mueve en las fusiones de clientes.
+- **Deduplicación:** índice único `(canal, id externo)` más un bloqueo por conversación: el mismo mensaje entregado 15 veces a la vez se registra una vez; 15 primeros mensajes simultáneos de un contacto nuevo dan 1 cliente, 1 lead, 1 conversación y 15 mensajes.
+- **Salida:** `queue_message` / `queue_template_message` validan en la base de datos permiso (alcance de la conversación), canal activo, **ventana de 24 h**, «no contactar» y, en plantillas, aprobación y número exacto de datos. Luego el servidor **reclama** el mensaje de forma atómica (`queued → sending`) y lo envía.
+- **«Como máximo una vez»:** un rechazo definitivo de Meta (4xx) marca «falló» con el motivo en español. Un resultado **desconocido** (red, tiempo agotado, 5xx) **no se reenvía**: el barrido lo marca «falló: verifica en WhatsApp» a los 5 minutos. Solo se reenvían mensajes que nunca llegaron a reclamarse.
+- **Estados de entrega:** solo avanzan (enviado → entregado → leído); uno atrasado se ignora; un «falló» tardío no pisa un mensaje ya leído. Si el estado llega **antes** de que guardemos el id del envío (carrera real), queda pendiente y el barrido lo aplica.
+- **Secretos:** el token de acceso vive en `channel_secrets`, **sin ninguna política ni permiso para usuarios** (ni admin); solo `channel_credentials` (llave de servicio) lo lee. El administrador solo puede saber *si* hay token. Ningún evento, auditoría ni texto de error lo contiene.
+- **Solo-anexar:** los mensajes no se editan ni se borran (salvo al eliminar la organización).
+- **Interfaz:** Inbox (Sin responder / Abiertas / Sin asignar / Cerradas, refresco cada 15 s), conversación (burbujas, estado de cada envío, ventana visible, plantillas), Configuración → Canales (URL del webhook, estado de los secretos, plantillas), conversaciones en la ficha del cliente y en su línea de tiempo.
+
+**Decisiones**
+- **«No contactar»:** bloquea plantillas y todo envío proactivo (fuera de ventana), pero **permite responder** dentro de las 24 h a un cliente que acaba de escribir. Es una sola condición en `app.queue_outbound`, fácil de endurecer si tu asesoría legal lo pide.
+- **Baja automática:** un mensaje que sea *exactamente* «stop», «baja», «parar», «no molestar», «no más», «cancelar suscripción», «darme de baja» o «unsubscribe» (sin distinguir mayúsculas, tildes ni signos) marca al cliente «no contactar». Una frase que solo *contiene* esas palabras no cuenta.
+- **Visibilidad:** la de la Fase 1 (§12): vendedor solo lo suyo, sales manager su equipo, manager/admin todo. Las conversaciones de clientes sin dueño solo las ven quienes tienen alcance de organización («Sin asignar»); se asignan reasignando al cliente.
+- **Hora de Meta:** llega redondeada a segundos y con su reloj. Solo se considera «atrasado» un mensaje con más de 2 minutos de diferencia; una respuesta rápida del cliente **no** puede tratarse como anterior a nuestro envío (defecto real encontrado y corregido con una prueba de regresión).
+- **Credenciales:** `META_APP_SECRET` y `META_VERIFY_TOKEN` son variables de entorno (una app de Meta para toda la instalación); el token de acceso es **por canal**.
+- **Plantillas:** se copian a mano desde las ya aprobadas en Meta (nombre, idioma y texto exactos); el sistema valida los marcadores `{{1}}…` y el número de datos. No hay sincronización automática ni envío de plantillas para aprobación.
+- **Alcance:** solo **WhatsApp** (el modelo admite otros canales; Instagram y correo quedan para más adelante).
+
+**Verificado**
+- **SQL:** 114 aserciones nuevas en `inbox.test.sql` (secretos, plantillas, identidad, duplicados, visibilidad por rol, ventana, «no contactar», bajas, estados, barrido, cola de webhooks, solo-anexar, fusión, RLS, permisos de funciones).
+- **Concurrencia real:** 3 escenarios nuevos (mismo mensaje ×15, primeros mensajes de un contacto nuevo ×15, 12 reclamos del mismo envío → exactamente 1).
+- **Mutaciones:** **44 defectos inyectados** (32 SQL + 12 TypeScript) —ventana ampliada, «no contactar» ignorado, estados que retroceden, reclamo no atómico, tokens legibles, RLS abierta, mensajes editables/borrables, baja no aplicada o demasiado amplia, sin tolerancia de reloj, firma sin comparar, handshake sin token, 5xx tratado como definitivo, desconocido tratado como fallo, ruta sin firma, `null` → 500…—. **Las 44 detectadas.**
+- **Integración contra PostgREST real:** 24 pruebas nuevas (71 en total): la **ruta real** del webhook (firma, 401/413/400/503, reintentos idénticos, payloads raros), los mismos repositorios y servicios de la app con JWT reales, y el envío hacia un **servidor Meta simulado** que comprueba URL, cabecera `Bearer` y cuerpo exactos, 8 entregas simultáneas del mismo mensaje (una sola llega), rechazo 131047, Meta caído (sin reenvío), barrido, carrera de estados y que el token no aparece en ninguna tabla.
+- **Unitarias:** 178 en total (firma, handshake, lectura de todos los tipos de mensaje, fuzz determinista de 500 estructuras aleatorias, envío, entrega, procesamiento, servicios, errores en español).
+- **Instaladores:** `setup-all.sql`, `setup-desde-0011.sql` y `setup-desde-0013.sql` dan el mismo esquema (35 tablas con RLS, 117 funciones); los incrementales se niegan a ejecutarse dos veces o sin la Fase 4.
+- **Errores propios corregidos al ejecutar:** el orden por hora del proveedor (arriba), un `null` firmado que producía 500, un filtro de tokens que faltaba en los textos de error, `now()` en vez de `clock_timestamp()` dentro de la cola de webhooks, una prueba que comparaba conteos mal calculados y una colisión de datos entre archivos de prueba.
+- **Trazabilidad:** el resumen de la sesión anterior daba el código de la Fase 5 por terminado, pero **no estaba en el directorio**; se reconstruyó y se verificó desde cero.
+
+**NO verificado todavía**
+- **Nada se ha probado contra Meta real.** El formato de las peticiones se contrastó con la documentación pública y con un servidor simulado, no con la API. Los códigos de error traducidos y la versión por defecto de la API (`v24.0`, configurable con `META_GRAPH_VERSION`) hay que confirmarlos en la primera prueba real.
+- Ni la Fase 5 ni la 4 se han ejecutado contra el **Supabase real**, ni abierto en un navegador (no hay navegador en el entorno): el aspecto de las burbujas, el refresco automático y los formularios desplegables necesitan revisión visual.
+
+**Deuda conocida (priorizada)**
+1. **Adjuntos:** los mensajes con imagen/audio/documento quedan como etiqueta + referencia (`media_id`); no se descargan ni se pueden ver ni enviar.
+2. **Tiempo real:** hoy es un refresco cada 10–15 s; Supabase Realtime lo haría instantáneo. Tampoco hay contador de «sin leer» en el menú.
+3. **Teléfonos con prefijos variables** (p. ej. México/Brasil, donde `wa_id` puede diferir del número guardado) pueden crear un cliente duplicado; el flujo de revisión de duplicados de la Fase 2 lo cubre parcialmente.
+4. **Alertas** cuando el token vence o el canal falla (hoy solo se ve al intentar enviar).
+5. Instagram/Messenger y correo; clasificación de intención (Fase 9); asignación automática y SLA de respuesta (Fase 6); respuestas rápidas y notas internas en la conversación.
+6. El token se guarda en la base de datos protegido por permisos (nadie con sesión lo lee) y por el cifrado en reposo de Supabase; no hay cifrado adicional a nivel de aplicación ni *vault*.
 

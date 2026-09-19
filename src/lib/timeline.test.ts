@@ -31,4 +31,17 @@ describe('describeEvent', () => {
     expect(describeEvent(ev('activity.logged', { type: 'call', direction: 'outbound', summary: 'Pidió cotización' }), name))
       .toEqual({ title: 'Llamada (saliente)', detail: 'Pidió cotización' });
   });
+
+  it('describe cotizaciones, ventas y casos', () => {
+    expect(describeEvent(ev('quote.accepted', { number: 'COT-0001' }), name)).toEqual({ title: '✔ Cotización aceptada', detail: 'COT-0001' });
+    expect(describeEvent(ev('sale.cancelled', { number: 'VTA-0002', reason: 'Desistió' }), name).detail).toBe('VTA-0002 · Motivo: Desistió');
+    expect(describeEvent(ev('case.status_changed', { number: 'CAS-0001', to: 'resolved' }), name)).toEqual({ title: 'Caso resuelto', detail: 'CAS-0001' });
+    expect(describeEvent(ev('case.opened', { number: 'CAS-0003', title: 'No llegó' }), name).detail).toBe('CAS-0003 · No llegó');
+  });
+
+  it('describe las conversaciones de WhatsApp', () => {
+    expect(describeEvent(ev('conversation.opened', { channel: 'whatsapp' }), name).title).toBe('Escribió por WhatsApp por primera vez');
+    expect(describeEvent(ev('conversation.reopened', {}), name).title).toBe('El cliente volvió a escribir por WhatsApp');
+  });
 });
+

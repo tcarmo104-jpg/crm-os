@@ -23,14 +23,15 @@ export const NAV_GROUPS: NavGroup[] = [
       { key: 'customers', label: 'Clientes', icon: 'users', href: '/customers' },
       { key: 'leads', label: 'Leads', icon: 'funnel', href: '/leads' },
       { key: 'opportunities', label: 'Oportunidades', icon: 'target', href: '/opportunities' },
-      { key: 'quotes', label: 'Cotizaciones', icon: 'file', phase: 4 },
-      { key: 'sales', label: 'Ventas', icon: 'cash', phase: 4 },
+      { key: 'quotes', label: 'Cotizaciones', icon: 'file', href: '/quotes' },
+      { key: 'sales', label: 'Ventas', icon: 'cash', href: '/sales' },
+      { key: 'cases', label: 'Casos de postventa', icon: 'shield', href: '/cases' },
     ],
   },
   {
     key: 'comms', label: 'Comunicaciones',
     items: [
-      { key: 'inbox', label: 'Inbox', icon: 'inbox', phase: 5 },
+      { key: 'inbox', label: 'Inbox', icon: 'inbox', href: '/inbox' },
       { key: 'whatsapp', label: 'WhatsApp', icon: 'chat', phase: 5 },
       { key: 'instagram', label: 'Instagram', icon: 'chat', phase: 5 },
       { key: 'facebook', label: 'Facebook', icon: 'chat', phase: 5 },
@@ -67,8 +68,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     key: 'catalog', label: 'Catálogo',
     items: [
-      { key: 'products', label: 'Productos', icon: 'box', phase: 4 },
-      { key: 'services', label: 'Servicios', icon: 'tool', phase: 4 },
+      { key: 'products', label: 'Productos y servicios', icon: 'box', href: '/products' },
     ],
   },
   {
@@ -80,6 +80,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { key: 'pipelines', label: 'Pipelines', icon: 'funnel', href: '/settings/pipelines' },
       { key: 'duplicates', label: 'Duplicados', icon: 'copy', href: '/settings/duplicates' },
       { key: 'fields', label: 'Campos personalizados', icon: 'tool', href: '/settings/fields' },
+      { key: 'channels', label: 'Canales (WhatsApp)', icon: 'chat', href: '/settings/channels' },
       { key: 'integrations', label: 'Integraciones', icon: 'plug', href: '/settings/integrations' },
       { key: 'settings', label: 'Configuración', icon: 'gear', phase: 13 },
     ],

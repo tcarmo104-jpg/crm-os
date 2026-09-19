@@ -147,3 +147,47 @@ Supabase real**. Antes de confiar en la Fase 2, recorre esto y avísame de cualq
 7. **Visibilidad:** con un vendedor comprueba que solo ve **sus** oportunidades y tareas, y con un *viewer* que no ve ninguna.
 8. **Reasignar:** como manager reasigna un cliente a otro vendedor: sus oportunidades abiertas y tareas pendientes deben pasar con él.
 
+## Actualizar a la Fase 4 (proyecto que ya tiene 0001 a 0010)
+
+1. **Base de datos primero.** En Supabase → *SQL Editor → New query*, pega el contenido de `supabase/setup-desde-0011.sql` y pulsa *Run*.
+   Debe terminar con una fila: `LISTO | 29 tablas | 29 con RLS | 56 permisos | 9 roles_base`.
+   El archivo comprueba antes que el proyecto tenga la Fase 3 y que la Fase 4 no esté ya instalada; si no, se detiene sin tocar nada.
+2. **Código después.** Sube a GitHub los archivos nuevos y modificados (paquete `crm-os-fase4-actualizacion.zip`, respetando las carpetas).
+   Vercel vuelve a desplegar solo. No hay variables de entorno nuevas.
+
+## Probar la Fase 4 en tu proyecto (20 minutos)
+
+1. **Catálogo:** en *Productos y servicios* crea «Consultoría» (servicio, 100.000, IVA 19) y «Silla» (producto, 250.000, IVA 19). Entra con un vendedor: los ve, pero no puede crear ni editar.
+2. **Cotizar:** en una oportunidad abierta, *Nueva cotización*. Agrega 2 × Consultoría y 3 × Silla con 10 % de descuento. Debe mostrar
+   total **1.041.250** (subtotal 950.000, descuento 75.000, IVA 166.250). Cambia el precio de la Silla en el catálogo: la cotización no cambia.
+3. **Enviar y congelar:** *Enviar cotización*. Ya no debe dejarte editar líneas ni vigencia; solo *Crear nueva versión* (queda «v2» en borrador y la anterior «Reemplazada»).
+4. **Aprobación de descuentos:** con un vendedor, una cotización con 25 % de descuento **no** debe poder enviarla; con un manager, sí.
+5. **Aceptar y vender:** *El cliente la aceptó* → *Registrar venta* (como manager o administrador; un vendedor ve el aviso de que debe hacerlo un manager).
+   La oportunidad queda **Ganada** por el valor neto (875.000) y aparecen 3 tareas de seguimiento (entrega +3 días, satisfacción +10, recompra +60).
+6. **Anular:** como manager, *Anular venta* con un motivo: el seguimiento pendiente se cancela. Un *sales manager* no debe poder.
+7. **Casos:** en la ficha de un cliente, *Abrir un caso*. En *Casos de postventa* llévalo a «En curso», intenta resolverlo sin escribir la solución (debe exigirla) y ciérralo.
+8. **Imprimir:** en una cotización, *Imprimir / guardar como PDF*: la vista impresa no debe mostrar menú ni botones.
+
+
+## Actualizar a la Fase 5 (Inbox y WhatsApp)
+
+1. **Base de datos primero.** En Supabase → *SQL Editor → New query*:
+   - Si tu proyecto **ya tiene 0001 a 0012** (la Fase 4 instalada): pega `supabase/setup-desde-0013.sql`.
+   - Si **todavía no instalaste la Fase 4** (tienes 0001 a 0010): pega `supabase/setup-desde-0011.sql`, que ya incluye la Fase 4 y la 5.
+   Debe terminar con una fila: `LISTO | 35 tablas | 35 con RLS | 56 permisos | 9 roles_base`.
+   El archivo se niega a ejecutarse si ya está instalado o si falta la Fase 4; no toca nada en esos casos.
+2. **Código después.** Sube a GitHub los archivos nuevos y modificados (paquete `crm-os-fase5-actualizacion.zip`, respetando las carpetas). Vercel vuelve a desplegar solo.
+3. **Variables nuevas en Vercel** (*Settings → Environment Variables*, marcadas como **Sensitive**, sin `NEXT_PUBLIC_`): `META_APP_SECRET` y `META_VERIFY_TOKEN`. Ver `docs/META-WHATSAPP.md` para obtenerlas. Después de agregarlas hay que **volver a desplegar**.
+4. **Programador cada minuto.** El mismo endpoint de la sección 5 (`/api/cron/dispatch-events`) ahora también reintenta webhooks pendientes y cierra envíos atascados. Si ya lo programaste con `pg_cron`, no hay que cambiar nada. Sin él, todo funciona salvo esos reintentos.
+
+## Probar la Fase 5 (30 minutos, con el número de prueba de Meta)
+
+Sigue primero `docs/META-WHATSAPP.md` hasta dejar el canal conectado.
+
+1. **Handshake:** en Meta, «Verificar y guardar» el webhook debe salir en verde. Si falla, revisa que `META_VERIFY_TOKEN` sea idéntico y que ya hayas vuelto a desplegar.
+2. **Contacto nuevo:** desde tu celular (agregado como destinatario de prueba) escribe al número de prueba. En **Inbox → Sin responder** debe aparecer en pocos segundos, y en **Clientes** un cliente nuevo con su lead de origen «whatsapp».
+3. **Responder:** abre la conversación y contesta. Debe pasar por «Enviado ✓», «Entregado ✓✓» y «Leído ✓✓» (los estados llegan por el mismo webhook).
+4. **Ventana de 24 h:** no puedes simular el paso del tiempo en Meta; confía en las pruebas automáticas (o, pasadas 24 h, comprueba que solo te ofrece plantillas).
+5. **Baja:** desde el celular escribe exactamente `STOP`. El cliente debe quedar «No contactar» y ya no ofrecer plantillas; responder seguirá permitido mientras la ventana esté abierta.
+6. **Permisos:** con un vendedor, verifica que solo ve las conversaciones de sus clientes. Reasigna el cliente a otro vendedor: la conversación se va con él.
+7. **Fallos a propósito:** pausa el canal en *Configuración → Canales* y comprueba que no deja enviar pero sí sigue recibiendo.

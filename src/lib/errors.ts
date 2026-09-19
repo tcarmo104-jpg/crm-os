@@ -85,6 +85,39 @@ export function toUserMessage(err: unknown): string {
   if (msg.includes('due date out of range') || msg.includes('date out of range')) return 'La fecha está fuera del rango permitido.';
   if (msg.includes('opportunity belongs to another customer')) return 'Esa oportunidad pertenece a otro cliente.';
 
+  // Bandeja (WhatsApp)
+  if (msg.includes('window_closed')) return 'Pasaron más de 24 horas desde el último mensaje del cliente. WhatsApp solo permite enviar una plantilla aprobada.';
+  if (msg.includes('do_not_contact')) return 'Este cliente pidió no ser contactado. Solo puedes responderle dentro de las 24 h posteriores a su último mensaje, y sin plantillas.';
+  if (msg.includes('channel_paused')) return 'El canal de WhatsApp está en pausa. Actívalo en Configuración → Canales.';
+  if (msg.includes('message_empty')) return 'Escribe el mensaje.';
+  if (msg.includes('message_too_long')) return 'El mensaje es demasiado largo (máximo 4096 caracteres).';
+  if (msg.includes('template_unavailable')) return 'Esa plantilla no está disponible (desactivada o de otro canal).';
+  if (msg.includes('template_params')) return 'Completa todos los datos de la plantilla.';
+  if (msg.includes('template_placeholders')) return 'Los datos variables deben ser {{1}}, {{2}}… en orden y sin saltos.';
+
+  // Catálogo, cotizaciones, ventas y casos
+  if (msg.includes('quote_locked')) return 'Esa cotización ya fue enviada y no se puede modificar. Crea una nueva versión.';
+  if (msg.includes('quote_empty')) return 'Agrega al menos una línea antes de enviar la cotización.';
+  if (msg.includes('discount_requires_approval')) return 'Esta cotización tiene un descuento mayor al permitido: un manager o administrador debe enviarla.';
+  if (msg.includes('quote_expired')) return 'La vigencia de esta cotización ya pasó. Crea una nueva versión con otra fecha.';
+  if (msg.includes('quote_not_sendable')) return 'Solo se puede enviar una cotización en borrador.';
+  if (msg.includes('quote_not_sent')) return 'La cotización debe estar enviada para aceptarla o rechazarla.';
+  if (msg.includes('quote_not_revisable')) return 'Solo se puede crear una versión nueva de una cotización enviada o rechazada.';
+  if (msg.includes('opportunity_closed')) return 'La oportunidad ya está cerrada.';
+  if (msg.includes('quote_not_accepted')) return 'La venta se registra desde una cotización aceptada.';
+  if (msg.includes('sale_already_exists')) return 'Esa cotización ya tiene una venta registrada.';
+  if (msg.includes('sale_not_confirmed')) return 'Solo se puede marcar como entregada una venta confirmada.';
+  if (msg.includes('sale_already_cancelled')) return 'Esa venta ya está anulada.';
+  if (msg.includes('only managers can cancel sales')) return 'Solo un manager o administrador puede anular una venta.';
+  if (msg.includes('only managers can reopen a closed case')) return 'Solo un manager o administrador puede reabrir un caso cerrado.';
+  if (msg.includes('only managers can reassign cases') || msg.includes('only managers can assign cases')) return 'No puedes asignar casos a esa persona.';
+  if (msg.includes('sale belongs to another customer')) return 'Esa venta pertenece a otro cliente.';
+  if (msg.includes('product not found')) return 'Ese producto no existe o está inactivo.';
+  if (msg.includes('item limit')) return 'Una cotización admite hasta 100 líneas.';
+  if (msg.includes('quotes_one_accepted_uk')) return 'Esta oportunidad ya tiene una cotización aceptada.';
+  if (msg.includes('products_sku_uk')) return 'Ya existe un producto con ese código (SKU).';
+  if (msg.includes('pipeline has no won stage')) return 'El pipeline no tiene una etapa «ganada» activa.';
+
   switch (err.code) {
     case '42501':
       return 'No tienes permiso para hacer esto.';

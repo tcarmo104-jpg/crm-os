@@ -48,3 +48,15 @@ export function formatMoney(amount: number, currency: string | null | undefined,
     return `${amount.toLocaleString(locale)} ${currency ?? ''}`.trim();
   }
 }
+
+/** "19", "19,5", "19.5", "19 %" → número entre 0 y 100 (null si no es válido). */
+export function parsePercent(raw: string): number | null {
+  const n = Number(raw.replace('%', '').replace(',', '.').trim());
+  return raw.trim() !== '' && Number.isFinite(n) && n >= 0 && n <= 100 ? Math.round(n * 100) / 100 : null;
+}
+
+/** Cantidad decimal escrita por una persona ("2", "2,5", "0.333"). No interpreta separadores de miles. */
+export function parseQuantity(raw: string): number | null {
+  const n = Number(raw.replace(',', '.').trim());
+  return raw.trim() !== '' && Number.isFinite(n) && n > 0 && n <= 1_000_000 ? Math.round(n * 1000) / 1000 : null;
+}

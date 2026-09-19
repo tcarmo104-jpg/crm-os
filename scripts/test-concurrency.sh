@@ -64,4 +64,55 @@ seq 1 12 | xargs -P 12 -I{} bash -c "psql -X -q -tA -d \$DB -c \"select set_conf
 [ "$(count "select count(*) from domain_events where entity_id = '$TASK' and type = 'task.completed'")" = "1" ] || fail "escenario 5: la tarea se completó más de una vez (o ninguna)"
 [ "$(count "select status from tasks where id = '$TASK'")" = "done" ] || fail "escenario 5: la tarea no quedó completada"
 
-echo "✔ CONCURRENCIA OK: sin duplicados, sin errores, sin deadlocks, historial íntegro"
+echo "→ Escenario 6: 40 cotizaciones creadas a la vez (numeración correlativa: sin repetidos ni huecos)"
+seq 1 40 | xargs -P 12 -I{} bash -c "psql -X -q -tA -v ON_ERROR_STOP=1 -d \$DB -c \"select set_config('request.jwt.claim.sub', '\$UID_', false); select public.create_quote('\$OPP')\" >/dev/null" \
+  || fail "alguna llamada falló en el escenario 6"
+[ "$(count "select count(distinct number) from quotes where opportunity_id = '$OPP'")" = "40" ] || fail "escenario 6: números de cotización repetidos"
+[ "$(count "select max(substring(number from 5)::int) from quotes where opportunity_id = '$OPP'")" = "40" ] || fail "escenario 6: hay huecos en la numeración"
+
+echo "→ Escenario 7: 10 personas registran LA MISMA venta a la vez (solo una puede lograrlo)"
+SALEQ=$("${PSQL[@]}" <<SQL | tail -1
+select set_config('request.jwt.claim.sub', '$UID_', false) \gset
+select public.create_quote(public.create_opportunity((select id from customers where org_id = '$ORG' limit 1), 'Venta en carrera', 100)) as q \gset
+select public.add_quote_item(:'q', null, 'Producto', 1, 1000, 0, 19);
+select public.send_quote(:'q');
+select public.accept_quote(:'q');
+select :'q';
+SQL
+)
+[ -n "$SALEQ" ] || fail "no se pudo preparar la cotización aceptada"
+export SALEQ
+seq 1 10 | xargs -P 10 -I{} bash -c "psql -X -q -tA -d \$DB -c \"select set_config('request.jwt.claim.sub', '\$UID_', false); select public.create_sale('\$SALEQ')\" >/dev/null 2>&1 || true"
+[ "$(count "select count(*) from sales where quote_id = '$SALEQ' and status <> 'cancelled'")" = "1" ] || fail "escenario 7: se registró más de una venta (o ninguna) para la misma cotización"
+[ "$(count "select count(*) from tasks where description like 'Seguimiento postventa de VTA-%' and opportunity_id = (select opportunity_id from quotes where id = '$SALEQ')")" = "3" ] || fail "escenario 7: el seguimiento postventa se duplicó"
+
+echo "→ Escenario 8: el MISMO mensaje entregado 15 veces a la vez por Meta (se registra una sola vez)"
+CH=$("${PSQL[@]}" <<SQL | tail -1
+select set_config('request.jwt.claim.sub', '$UID_', false) \gset
+select public.create_channel('$ORG', 'Canal prueba', '555000111222', null, 'EAAB-token-abcdefghijklmnopqrstuvwxyz');
+SQL
+)
+[ -n "$CH" ] || fail "no se pudo crear el canal de prueba"
+seq 1 15 | xargs -P 15 -I{} bash -c "psql -X -q -tA -d \$DB -c \"select public.ingest_whatsapp_message('555000111222', '573777000111', 'Contacto Carrera', 'wamid.SAME', 'text', 'hola', now())\" >/dev/null 2>&1 || true"
+[ "$(count "select count(*) from messages where external_id = 'wamid.SAME'")" = "1" ] || fail "escenario 8: el mensaje se registró más de una vez (o ninguna)"
+
+echo "→ Escenario 9: 15 primeros mensajes DISTINTOS del mismo contacto nuevo, a la vez (1 cliente, 1 lead, 1 conversación)"
+seq 1 15 | xargs -P 15 -I{} bash -c "psql -X -q -tA -d \$DB -c \"select public.ingest_whatsapp_message('555000111222', '573888000222', 'Nuevo Simultáneo', 'wamid.N{}', 'text', 'mensaje {}', now())\" >/dev/null 2>&1 || true"
+[ "$(count "select count(*) from conversations where thread_key = '573888000222'")" = "1" ] || fail "escenario 9: se duplicó la conversación"
+[ "$(count "select count(*) from customer_identifiers where value = '+573888000222'")" = "1" ] || fail "escenario 9: se duplicó el cliente"
+[ "$(count "select count(*) from leads l join customer_identifiers i on i.customer_id = l.customer_id where i.value = '+573888000222'")" = "1" ] || fail "escenario 9: se duplicó el lead"
+[ "$(count "select count(*) from messages m join conversations c on c.id = m.conversation_id where c.thread_key = '573888000222'")" = "15" ] || fail "escenario 9: se perdieron o duplicaron mensajes"
+
+echo "→ Escenario 10: 12 procesos reclaman EL MISMO mensaje saliente a la vez (solo uno puede enviarlo)"
+MSG=$("${PSQL[@]}" <<SQL | tail -1
+select set_config('request.jwt.claim.sub', '$UID_', false) \gset
+select public.queue_message((select id from conversations where thread_key = '573888000222'), 'respuesta única');
+SQL
+)
+[ -n "$MSG" ] || fail "no se pudo encolar el mensaje"
+export MSG
+seq 1 12 | xargs -P 12 -I{} bash -c "psql -X -q -tA -d \$DB -c \"select public.claim_outbound('\$MSG') is not null\" 2>/dev/null" > /tmp/claims.txt
+[ "$(grep -c '^t$' /tmp/claims.txt)" = "1" ] || fail "escenario 10: más de un proceso reclamó el mismo mensaje ($(grep -c '^t$' /tmp/claims.txt))"
+[ "$(count "select attempts from messages where id = '$MSG'")" = "1" ] || fail "escenario 10: el mensaje tiene más de un intento"
+
+echo "✔ CONCURRENCIA OK: sin duplicados, sin errores, sin deadlocks, historial y numeración íntegros"
