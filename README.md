@@ -5,6 +5,7 @@ Stack: Next.js 15 · TypeScript · Supabase (PostgreSQL, Auth) · Vercel.
 
 - Diseño y decisiones: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - **Despliegue paso a paso:** [`docs/DEPLOY.md`](docs/DEPLOY.md)
+- **Conectar WhatsApp (Meta):** [`docs/META-WHATSAPP.md`](docs/META-WHATSAPP.md)
 
 ## Estado
 
@@ -15,7 +16,8 @@ Stack: Next.js 15 · TypeScript · Supabase (PostgreSQL, Auth) · Vercel.
 | 2 | Customer 360, resolución de identidad, captura de leads (CSV y API), duplicados, campos personalizados | ✅ (falta validar en staging: ver `docs/DEPLOY.md`) |
 | 3 | Pipelines, oportunidades, tareas y actividades, log de transiciones, máquina de estados de leads | ✅ (falta validar en staging: ver `docs/DEPLOY.md`) |
 | 4 | Catálogo de productos y servicios, cotizaciones versionadas, ventas con foto inmutable, seguimiento postventa y casos | ✅ (falta validar en staging: ver `docs/DEPLOY.md`) |
-| 5 | Inbox omnicanal (WhatsApp, Instagram, correo) | siguiente |
+| 5 | Inbox y WhatsApp (API de Meta): conversaciones, plantillas, ventana de 24 h, «no contactar», entrega con estados | ✅ construido (falta probar con Meta real: ver `docs/META-WHATSAPP.md`) |
+| 6 | Motor de asignación, lead scoring, SLA | siguiente |
 
 ## Estructura
 
