@@ -20,7 +20,12 @@ export async function processMetaPayload(admin: Admin, payload: unknown): Promis
     });
     if (r.error) { sum.retry = true; continue; }
     const d = r.data as { ok: boolean; reason?: string };
-    if (d.ok) sum.messages++; else sum.ignored++;
+    if (d.ok) sum.messages++;
+    else {
+      sum.ignored++;
+      // Diagnóstico: el ID del número que manda Meta no coincide con ningún canal conectado.
+      console.warn(JSON.stringify({ msg: 'meta_unknown_channel', phone_number_id: m.phoneNumberId, reason: d.reason }));
+    }
   }
   for (const s of statuses) {
     const r = await admin.rpc('apply_message_status', {
@@ -43,7 +48,7 @@ export async function handleWebhook(admin: Admin, payload: unknown): Promise<Pro
   const id = rec.data as number;
   try {
     const sum = await processMetaPayload(admin, payload);
-    await admin.rpc('finish_raw_event', { p_id: id, p_ok: !sum.retry, p_error: sum.retry ? 'reintentar' : null });
+    await admin.rpc('finish_raw_event', { p_id: id, p_ok: !sum.retry, p_error: sum.retry ? 'reintentar' : sum.ignored > 0 ? 'ignorado: el ID del número no coincide con ningún canal' : null });
     return sum;
   } catch (e) {
     await admin.rpc('finish_raw_event', { p_id: id, p_ok: false, p_error: e instanceof Error ? e.message.slice(0, 200) : 'error' });

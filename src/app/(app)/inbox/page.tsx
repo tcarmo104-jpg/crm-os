@@ -59,7 +59,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
             </nav>
           </div>
           {page.items.length === 0 ? (
-            <div className="empty"><p><strong>{filter === 'reply' ? 'No hay mensajes por responder. 🎉' : 'No hay conversaciones aquí.'}</strong></p></div>
+            <div className="empty"><p><strong>{filter === 'reply' ? 'No hay mensajes por responder. 🎉' : 'No hay conversaciones aquí.'}</strong></p>{filter === 'reply' ? <p className="muted small">Aquí solo aparecen las conversaciones donde el cliente escribió último. Mira también <Link href="/inbox?f=open">Abiertas</Link>.</p> : null}</div>
           ) : page.items.map((c) => (
             <Link key={c.id} href={`/inbox/${c.id}`} className={`conv-row${c.unread ? ' unread' : ''}`}>
               {c.unread ? <span className="dot" aria-label="Sin leer" /> : <span className="dot" style={{ visibility: 'hidden' }} />}

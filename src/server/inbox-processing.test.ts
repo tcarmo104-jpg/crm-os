@@ -96,6 +96,15 @@ describe('procesamiento de webhooks', () => {
     const { admin } = fakeAdmin({ ingest_whatsapp_message: { data: { ok: false, reason: 'unknown_channel' } } });
     expect(await processMetaPayload(admin, payload(undefined, [inMsg]))).toMatchObject({ messages: 0, ignored: 1, retry: false });
   });
+  it('si el ID del número no coincide con ningún canal, se anota en el evento y en el registro para diagnosticar', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { admin, calls } = fakeAdmin({ record_raw_event: { data: 5 }, ingest_whatsapp_message: { data: { ok: false, reason: 'unknown_channel' } }, finish_raw_event: {} });
+    await handleWebhook(admin, payload(undefined, [inMsg]));
+    expect(calls.find((c) => c.fn === 'finish_raw_event')!.args).toMatchObject({ p_ok: true, p_error: expect.stringContaining('ningún canal') });
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('meta_unknown_channel'));
+    expect(warn.mock.calls.join('')).not.toContain('Hola');            // nunca se registra el contenido del mensaje
+    warn.mockRestore();
+  });
   it('un error de base de datos pide reintento pero sigue con el resto del lote', async () => {
     let n = 0;
     const { admin } = fakeAdmin({ ingest_whatsapp_message: () => (++n === 1 ? { error: { message: 'x' } } : { data: { ok: true } }) });
