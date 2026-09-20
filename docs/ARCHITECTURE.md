@@ -491,3 +491,35 @@ y su ruta la del archivo: no se copia nada al encolar.
 - UI: `CustomerFiles` (panel del Inbox; reutiliza el visor `Lightbox`) y una sección en `DetailPanel` de Oportunidades (`OpportunityDetail.files`, con la conversación vinculada).
 - **Corrección (0020)**: el disparador `app.opportunities_defaults` copiaba `channels.kind` a `opportunities.channel`; desde Gmail ese tipo es `gmail` y la restricción solo admite
   `email` → no se podía crear la oportunidad de un cliente cuya última conversación fue por Gmail. Ahora `gmail → email`. Es el único lugar que copia el tipo de canal a una columna restringida.
+
+## 25. Diagnóstico de recepción de WhatsApp (migración 0021)
+
+Problema: cuando Meta llamaba al webhook y algo fallaba (firma inválida por clave equivocada, token de verificación distinto, variable ausente), solo quedaba un `console.warn`
+en los registros de Vercel: desde el CRM no se podía distinguir «Meta no llega» de «llega y se rechaza» de «llega y no se ve».
+
+- `webhook_stats(day, outcome, hits, last_at)`: un contador por día y resultado (`verify_ok · verify_rejected · accepted · bad_signature · no_secret · bad_payload`), sin contenido, claves
+  ni datos de clientes; 30 días. Solo el servidor lo toca (`bump_webhook_stat`, `webhook_stats_summary`). Abrir la URL en el navegador NO cuenta (no trae `hub.mode`).
+- `src/lib/reception.ts` (`diagnoseReception`, lógica pura): convierte los hechos en pasos y en UN veredicto: lo primero que falla, con la acción concreta.
+- `src/server/meta-webhook.ts`: consulta a Meta cómo está el webhook de la app (`GET /{app}/subscriptions`, con la credencial de la app), lee el token (`debug_token`: a qué app pertenece
+  y cuándo vence) y **configura el webhook en Meta** (`POST /{app}/subscriptions`: objeto, dirección, token de verificación, campo `messages`); Meta verifica la dirección en el momento.
+- UI: `ReceptionPanel` arriba de la pantalla de la conexión de WhatsApp; la consulta a Meta solo ocurre con «Ejecutar diagnóstico completo» (`?diag=1`).
+- Límite: la configuración automática necesita `META_APP_SECRET`, `META_VERIFY_TOKEN` y `NEXT_PUBLIC_SITE_URL` (variables de la plataforma, del dueño del CRM); el ID de la app se deduce del token.
+
+## 26. Credenciales de Meta y Google dentro del CRM (migración 0022)
+
+Problema: la clave secreta y el token de verificación son de la APLICACIÓN de Meta (no de cada número) pero se pedían como variables de Vercel: fricción, y no escala si cada empresa
+tiene su propia app. Ahora viven en el CRM, por organización.
+
+- `provider_apps(org_id, provider meta|google, client_id, client_secret, verify_token)`: un identificador de app pertenece a UNA organización. Sin políticas de acceso: solo `service_role` la lee.
+  Funciones: `save_provider_app` / `provider_app_status` / `delete_provider_app` (administradores; el estado nunca devuelve la clave) y `provider_app_secrets` / `meta_apps_for_webhook` (solo servidor).
+  Los eventos de auditoría no llevan la clave. Los valores se cifran con `CONNECTIONS_ENCRYPTION_KEY` si existe (opcional).
+- **Resolver** (`src/server/provider-apps.ts`): primero la aplicación de la organización; si no tiene, las variables de entorno (aplicación «de la plataforma», compatibilidad). Sin caché a propósito
+  (Meta verifica el webhook al instante de registrarlo).
+- **Webhook** (`/api/webhooks/meta`): prueba la firma contra TODAS las aplicaciones conocidas; la que coincide identifica de quién es el aviso. Si es de la aplicación de una organización,
+  `restrictPayloadToOrg` descarta —ANTES de guardar— todo lo que hable de canales de otra organización (evita falsificar mensajes entre empresas y deja el registro de reintentos depurado).
+  La verificación GET compara con el token de cada aplicación.
+- **Dirección pública** (`src/lib/origin.ts`, `src/server/origin.ts`): se detecta por la petición (`x-forwarded-host`/`proto`); `NEXT_PUBLIC_SITE_URL` con https, si existe, manda.
+- **Conectar la app** (`connectMetaApp`): valida Identificador + Clave con Meta (`GET /{app}` con `app|secret`), guarda, crea un token de verificación de 40 caracteres y registra el webhook
+  (`POST /{app}/subscriptions`). Google: `verifyGoogleClient` (un canje con código inventado: `invalid_grant` = credenciales correctas, `invalid_client` = mal).
+- Consumidores migrados al resolver: OAuth de Facebook/Instagram/Google, verificación y sincronización de conexiones, descarga de adjuntos de Gmail, envío de correo, diagnóstico y páginas de Conexiones.
+- Límite: las direcciones de redirección de OAuth (Facebook/Instagram y Google) deben registrarse a mano en Meta/Google (no hay API para ello); la pantalla las muestra.

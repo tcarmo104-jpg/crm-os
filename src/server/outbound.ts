@@ -1,3 +1,4 @@
+import { googleAppFor } from './provider-apps';
 import 'server-only';
 import type { createAdminClient } from './supabase-admin';
 import { classifyGoogleError, classifyMetaError, redact } from '@/lib/connections';
@@ -65,15 +66,15 @@ export async function deliverMessage(admin: Admin, messageId: string, send: (i: 
       const f = files[0]!;
       r = await sendSocialAttachment({ token, to: c.to, type: f.kind === 'image' || f.kind === 'video' || f.kind === 'audio' ? f.kind : 'file', bytes: f.bytes, mime: f.mime, fileName: f.fileName, fetchImpl: deps.fetchImpl });
     } else {
-      const clientId = (env.GOOGLE_CLIENT_ID ?? '').trim(), clientSecret = (env.GOOGLE_CLIENT_SECRET ?? '').trim();
-      if (!clientId || !clientSecret) return finishFail('not_configured', 'Faltan las credenciales de Google en el servidor. Avisa a un administrador.');
+      const { clientId, clientSecret } = await googleOfChannel(admin, c.channel_id, env);
+      if (!clientId || !clientSecret) return finishFail('not_configured', 'Falta conectar tu aplicación de Google en Conexiones. Avisa a un administrador.');
       r = await (deps.email ?? sendGmailReply)({ refreshToken: token, app: { clientId, clientSecret }, from: c.account_id ?? '', to: c.to, body: caption ?? '(archivo adjunto)', replyMeta: c.reply_meta ?? {}, attachments: files.map((f) => ({ fileName: f.fileName, mime: f.mime, bytes: f.bytes })), fetchImpl: deps.fetchImpl });
     }
   } else if (kind === 'facebook' || kind === 'instagram') {
     r = await (deps.social ?? sendSocial)({ token, to: c.to, body: c.body, fetchImpl: deps.fetchImpl });
   } else if (kind === 'gmail') {
-    const clientId = (env.GOOGLE_CLIENT_ID ?? '').trim(), clientSecret = (env.GOOGLE_CLIENT_SECRET ?? '').trim();
-    if (!clientId || !clientSecret) return finishFail('not_configured', 'Faltan las credenciales de Google en el servidor. Avisa a un administrador.');
+    const { clientId, clientSecret } = await googleOfChannel(admin, c.channel_id, env);
+    if (!clientId || !clientSecret) return finishFail('not_configured', 'Falta conectar tu aplicación de Google en Conexiones. Avisa a un administrador.');
     r = await (deps.email ?? sendGmailReply)({ refreshToken: token, app: { clientId, clientSecret }, from: c.account_id ?? '', to: c.to, body: c.body, replyMeta: c.reply_meta ?? {}, fetchImpl: deps.fetchImpl });
   } else {
     r = await send({
@@ -107,4 +108,12 @@ export async function sweepOutbound(admin: Admin): Promise<{ retried: number; ex
     try { if ((await deliverMessage(admin, id)) !== 'skipped') retried++; } catch { /* se reintenta en el siguiente barrido */ }
   }
   return { retried, expired: d.expired ?? 0 };
+}
+
+/** Credenciales de Google de la organización dueña del canal (la suya o la de la plataforma). */
+async function googleOfChannel(admin: Admin, channelId: string, env: NodeJS.ProcessEnv): Promise<{ clientId: string; clientSecret: string }> {
+  const q = await admin.from('channels').select('org_id').eq('id', channelId).maybeSingle();
+  const org = (q.data as { org_id: string } | null)?.org_id;
+  const g = org ? await googleAppFor(admin, org, env) : null;
+  return { clientId: g?.clientId ?? '', clientSecret: g?.clientSecret ?? '' };
 }

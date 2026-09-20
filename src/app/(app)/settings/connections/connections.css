@@ -129,3 +129,27 @@
 .cx-setup summary { cursor: pointer; font-weight: 600; font-size: 13px; color: var(--cx-ink2); }
 .cx-setup .cx-kv { margin-top: 10px; }
 .cx-setup ol { margin: 8px 0 0 18px; list-style: decimal; display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--cx-ink2); }
+
+/* Diagnóstico de recepción */
+.cx-diag { border-width: 2px; }
+.cx-diag--ok { border-color: color-mix(in srgb, var(--cx-ok) 45%, var(--cx-line)); }
+.cx-diag--action { border-color: color-mix(in srgb, var(--cx-danger) 50%, var(--cx-line)); }
+.cx-diag--unknown { border-color: color-mix(in srgb, var(--cx-warn) 50%, var(--cx-line)); }
+.cx-verdict { font-size: 16px; }
+.cx-steps-box summary { cursor: pointer; font-weight: 600; font-size: 13px; color: var(--cx-ink2); }
+.cx-steps { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; }
+.cx-step { display: flex; gap: 10px; align-items: flex-start; }
+.cx-step > span:last-child { display: flex; flex-direction: column; min-width: 0; }
+.cx-step small { color: var(--cx-muted); font-size: 12.5px; overflow-wrap: anywhere; }
+.cx-step-ico { flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-size: 12px; font-weight: 700; background: var(--cx-mute-soft); color: var(--cx-muted); }
+.cx-step--ok .cx-step-ico { background: var(--cx-ok-soft); color: var(--cx-ok); }
+.cx-step--fail .cx-step-ico { background: var(--cx-danger-soft); color: var(--cx-danger); }
+.cx-step--warn .cx-step-ico { background: var(--cx-warn-soft); color: var(--cx-warn); }
+.cx-diag .cx-btn { white-space: normal; height: auto; min-height: 36px; padding-block: 8px; text-align: center; line-height: 1.25; }
+.cx-diag .cx-actions { align-items: stretch; }
+
+/* Tu aplicación de Meta / Google */
+.cx-apps { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 16px; margin-bottom: 16px; }
+.cx-panel--todo { border: 2px solid color-mix(in srgb, var(--cx-warn) 55%, var(--cx-line)); }
+.cx-app-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.cx-btn--danger-ghost { background: transparent; color: var(--cx-danger); border-color: color-mix(in srgb, var(--cx-danger) 40%, var(--cx-line)); margin-top: 8px; }

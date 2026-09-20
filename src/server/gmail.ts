@@ -99,3 +99,15 @@ export function getGmailAttachment(access: string, messageId: string, attachment
   }
   return gcall('GET', `${API}/messages/${messageId}/attachments/${encodeURIComponent(attachmentId)}`, { ...o, token: access });
 }
+
+/**
+ * ¿El ID de cliente y el secreto son de verdad? Se pide a Google un canje con un código inventado: si las credenciales son correctas responde
+ * «invalid_grant» (el código no vale); si están mal, «invalid_client». Cualquier otra respuesta no permite concluir.
+ */
+export async function verifyGoogleClient(app: GoogleApp, o: GoogleOpts = {}): Promise<'ok' | 'bad' | 'unknown'> {
+  const r = await gcall<unknown>('POST', TOKEN_URL, { ...o, form: { code: 'verificacion-de-credenciales', client_id: app.clientId, client_secret: app.clientSecret, redirect_uri: 'https://localhost/verificacion', grant_type: 'authorization_code' } });
+  if (r.ok) return 'ok';
+  if (r.code === 'invalid_grant') return 'ok';
+  if (r.code === 'invalid_client' || r.code === 'unauthorized_client') return 'bad';
+  return 'unknown';
+}

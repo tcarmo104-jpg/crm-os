@@ -9,6 +9,10 @@ import { setFlash } from '@/lib/flash';
 import { can } from '@/lib/session';
 import * as repo from '@/repositories/inbox';
 import { connectMetaSelection, connectWhatsApp, resolveManagedChannel, syncGmail, verifyChannel } from '@/server/connections';
+import { verifyGoogleClient } from '@/server/gmail';
+import { configureReceptionWebhook, connectMetaApp } from '@/server/meta-webhook';
+import { serverOrigin } from '@/server/origin';
+import { removeProviderApp, saveProviderApp } from '@/server/provider-apps';
 import { createAdminClient } from '@/server/supabase-admin';
 import * as inbox from '@/services/inbox';
 
@@ -121,5 +125,58 @@ export async function syncGmailAction(fd: FormData) {
     if (r.note === 'transient') return { kind: 'error' as const, message: 'No pudimos comunicarnos con Google. Inténtalo de nuevo en unos minutos.' };
     if (r.note && r.note !== 'partial') return outcomeNotice('needs_auth', 'Gmail');
     return r.ingested > 0 ? `Listo: ${r.ingested} ${r.ingested === 1 ? 'correo nuevo' : 'correos nuevos'} en tu Inbox.` : 'Sin correos nuevos. Solo se traen mensajes directos de personas (no promociones ni notificaciones).';
+  });
+}
+
+/** Deja configurado el webhook en la app de Meta (dirección + token + campo «messages») sin que la persona copie nada. */
+export async function configureWebhookAction(fd: FormData) {
+  const back = returnTo(fd, LIST);
+  await run(back, async (ctx) => {
+    const id = await guard(ctx, str(fd.get('channelId')));
+    const admin = createAdminClient();
+    const r = await configureReceptionWebhook(admin, { channelId: id, orgId: ctx.org.orgId, origin: await serverOrigin() });
+    if (!r.ok) return { kind: 'error' as const, message: r.message };
+    await verifyChannel(admin, id);                       // de paso, vuelve a suscribir la cuenta de WhatsApp Business
+    return 'Listo: el webhook quedó configurado en Meta. Ahora responde el mensaje de prueba desde tu celular: debe aparecer en el Inbox.';
+  });
+}
+
+/** «Tu aplicación de Meta»: comprueba el Identificador y la Clave secreta con Meta, los guarda cifrados y configura el webhook. Nada de Vercel. */
+export async function saveMetaAppAction(fd: FormData) {
+  await run(returnTo(fd, LIST), async ({ org, db, session }) => {
+    if (!can(session, 'settings:manage')) throw new UserFacingError('Solo un administrador puede conectar la aplicación de Meta.');
+    const r = await connectMetaApp(db, { orgId: org.orgId, appId: str(fd.get('appId')), secret: str(fd.get('appSecret')), origin: await serverOrigin() });
+    if (!r.ok) return { kind: 'error' as const, message: r.message };
+    const name = r.appName ? `«${r.appName}»` : 'de Meta';
+    return r.webhook.ok
+      ? `Tu aplicación ${name} quedó conectada y el webhook configurado en Meta. Ahora conecta tu número de WhatsApp, o responde el mensaje de prueba desde tu celular.`
+      : { kind: 'error' as const, message: `Guardamos tu aplicación ${name}, pero no pudimos configurar el webhook: ${r.webhook.message}` };
+  });
+}
+export async function removeMetaAppAction(fd: FormData) {
+  await run(returnTo(fd, LIST), async ({ org, db, session }) => {
+    if (!can(session, 'settings:manage')) throw new UserFacingError('Solo un administrador puede quitar la aplicación de Meta.');
+    await removeProviderApp(db, org.orgId, 'meta');
+    return 'Quitamos tu aplicación de Meta del CRM. Tus mensajes dejarán de llegar hasta que la vuelvas a conectar.';
+  });
+}
+
+/** «Tu aplicación de Google»: comprueba el ID de cliente y el secreto con Google y los guarda cifrados. */
+export async function saveGoogleAppAction(fd: FormData) {
+  await run(returnTo(fd, LIST), async ({ org, db, session }) => {
+    if (!can(session, 'settings:manage')) throw new UserFacingError('Solo un administrador puede conectar la aplicación de Google.');
+    const clientId = str(fd.get('clientId')).trim(), secret = str(fd.get('clientSecret')).trim();
+    if (clientId.length < 10 || /\s/.test(clientId)) throw new UserFacingError('El ID de cliente de Google termina en «.apps.googleusercontent.com». Cópialo de Google Cloud → Credenciales.');
+    if (secret.length < 8 || /\s/.test(secret)) throw new UserFacingError('El secreto de cliente de Google empieza con «GOCSPX-». Cópialo de Google Cloud → Credenciales.');
+    if ((await verifyGoogleClient({ clientId, clientSecret: secret })) === 'bad') throw new UserFacingError('Google no reconoce esa combinación: el ID de cliente y el secreto deben ser del MISMO cliente OAuth. Vuelve a copiarlos.');
+    await saveProviderApp(db, org.orgId, 'google', { clientId, secret });
+    return 'Tu aplicación de Google quedó conectada. Ahora puedes conectar tu cuenta de Gmail.';
+  });
+}
+export async function removeGoogleAppAction(fd: FormData) {
+  await run(returnTo(fd, LIST), async ({ org, db, session }) => {
+    if (!can(session, 'settings:manage')) throw new UserFacingError('Solo un administrador puede quitar la aplicación de Google.');
+    await removeProviderApp(db, org.orgId, 'google');
+    return 'Quitamos tu aplicación de Google del CRM.';
   });
 }

@@ -4,7 +4,9 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { can, getSession } from '@/lib/session';
 import { readFlash } from '@/lib/flash';
-import { siteUrl } from '@/lib/env';
+import { serverOrigin } from '@/server/origin';
+import { metaAppFor } from '@/server/provider-apps';
+import { createAdminClient } from '@/server/supabase-admin';
 import { channelTokenStatus, listChannels, listTemplates } from '@/repositories/inbox';
 import { Notice, SubmitButton } from '@/components/ui';
 import { createChannelAction, createTemplateAction, saveTokenAction, setChannelStatusAction, setTemplateStatusAction } from './actions';
@@ -17,9 +19,10 @@ export default async function ChannelsPage() {
   const org = session.active!;
   const db = await createClient();
   const [channels, tokens, templates, flash] = await Promise.all([listChannels(db, org.orgId), channelTokenStatus(db, org.orgId), listTemplates(db, org.orgId), readFlash()]);
-  const webhook = `${siteUrl()}/api/webhooks/meta`;
-  const secretOk = Boolean(process.env.META_APP_SECRET?.trim());
-  const verifyOk = Boolean(process.env.META_VERIFY_TOKEN?.trim());
+  const webhook = `${await serverOrigin()}/api/webhooks/meta`;
+  const metaApp = await metaAppFor(createAdminClient(), org.orgId);
+  const secretOk = Boolean(metaApp);
+  const verifyOk = Boolean(metaApp?.verifyToken);
 
   return (
     <>

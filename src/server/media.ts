@@ -1,3 +1,4 @@
+import { googleAppFor } from './provider-apps';
 import 'server-only';
 import { createHash } from 'node:crypto';
 import { SecretError, openSecret } from '@/lib/secrets';
@@ -144,7 +145,8 @@ async function getWhatsApp(admin: Admin, c: Claimed, deps: MediaDeps, env: NodeJ
 async function getGmail(admin: Admin, c: Claimed, deps: MediaDeps, env: NodeJS.ProcessEnv): Promise<Got> {
   const { gmail_id: gid, attachment_id: aid } = c.source;
   if (!gid || !aid) return { ok: false, why: 'bad_source' };
-  const clientId = (env.GOOGLE_CLIENT_ID ?? '').trim(), clientSecret = (env.GOOGLE_CLIENT_SECRET ?? '').trim();
+  const gapp = await googleAppFor(admin, c.org_id, env);          // la aplicación de Google de ESA organización (o la de la plataforma)
+  const clientId = gapp?.clientId ?? '', clientSecret = gapp?.clientSecret ?? '';
   const refresh = await tokenFor(admin, c.channel_id, env);
   if (!clientId || !clientSecret || !refresh) return { ok: false, why: 'no_credentials' };
   const tok = await refreshGoogleToken(refresh, { clientId, clientSecret }, { fetchImpl: deps.fetchImpl });

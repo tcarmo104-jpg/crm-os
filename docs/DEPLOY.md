@@ -256,3 +256,23 @@ Sigue primero `docs/META-WHATSAPP.md` hasta dejar el canal conectado.
 2. Sube el código a GitHub (arrastra las carpetas del ZIP → Commit) y espera el deploy de Vercel.
 3. Prueba: abre una conversación con archivos → en el panel derecho, **Archivos** (ábrelo). Abre una oportunidad de ese cliente: debe aparecer **Archivos de la conversación**.
 4. Importante: **sin la 0020, crear la oportunidad de un cliente que escribió por Gmail da error.** Instálala aunque no uses los archivos.
+
+## Actualizar a Diagnóstico de recepción de WhatsApp (migración 0021)
+
+1. Supabase → SQL Editor → **New query**. Según lo que ya tengas instalado:
+   - Ya instalaste la 0020 → pega `supabase/setup-desde-0021.sql`.
+   - Aún no instalaste la 0020 → pega `supabase/setup-desde-0020.sql` (ya incluye la 0021).
+   - Aún no instalaste la 0019 → pega `supabase/setup-desde-0019.sql` (incluye 0019, 0020 y 0021).
+   Debe terminar con `estado = LISTO`.
+2. Sube el código a GitHub y espera el deploy de Vercel.
+3. Entra a **Configuración → Conexiones → Configurar**: verás el panel **«¿Por qué no llegan mis mensajes?»**. Sigue `docs/RECEPCION-WHATSAPP.md`.
+
+## Actualizar a «Tu aplicación de Meta/Google» dentro del CRM (migración 0022) — adiós a las variables de Vercel
+
+1. Supabase → SQL Editor → **New query** → pega el instalador que corresponda a lo que ya tengas (debe terminar con `estado = LISTO`):
+   - ya tienes hasta la 0021 → `supabase/setup-desde-0022.sql`
+   - hasta la 0020 → `supabase/setup-desde-0021.sql` (incluye la 0022)
+   - hasta la 0019 → `supabase/setup-desde-0020.sql` · hasta la 0018 → `supabase/setup-desde-0019.sql`
+2. Sube el código a GitHub y espera el deploy de Vercel.
+3. Entra a **Configuración → Conexiones**: arriba está **«Tu aplicación de Meta»**. Pega el Identificador y la Clave secreta → **Guardar y conectar**. Sigue `docs/RECEPCION-WHATSAPP.md`.
+4. Las variables de Meta/Google que ya habías puesto en Vercel **siguen funcionando** como respaldo. Cuando tu app esté conectada en el CRM puedes borrarlas.

@@ -135,3 +135,30 @@ async function fillContactName(admin: Admin, kind: string, accountId: string, th
     if (name) await admin.rpc('set_contact_profile', { p_conversation: conversationId, p_name: name });
   } catch { /* se queda el nombre provisional */ }
 }
+
+// ---------------------------------------------------------------------------------------------- aislamiento por organización
+const isRec = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/**
+ * Un aviso firmado con la aplicación de META de una organización SOLO puede afectar a los canales de esa organización. Antes de guardar
+ * nada se descarta todo lo que hable de canales ajenos (o desconocidos): así una empresa no puede falsificar mensajes para el canal de otra,
+ * y los reintentos futuros trabajan con el aviso ya depurado.
+ */
+export async function restrictPayloadToOrg(admin: Admin, payload: unknown, orgId: string): Promise<unknown> {
+  if (!isRec(payload)) return payload;
+  const kind = payload.object === 'whatsapp_business_account' ? 'whatsapp' : payload.object === 'page' ? 'facebook' : payload.object === 'instagram' ? 'instagram' : null;
+  if (!kind) return { ...payload, entry: [] };
+  const r = await admin.from('channels').select('external_id').eq('org_id', orgId).eq('kind', kind);
+  const owned = new Set(((r.data ?? []) as { external_id: string }[]).map((c) => c.external_id));
+  const entries = Array.isArray(payload.entry) ? payload.entry : [];
+  const keep: unknown[] = [];
+  for (const e of entries) {
+    if (!isRec(e)) continue;
+    if (kind === 'whatsapp') {
+      const changes = (Array.isArray(e.changes) ? e.changes : []).filter((c) => isRec(c) && isRec(c.value) && isRec(c.value.metadata) && owned.has(String(c.value.metadata.phone_number_id ?? '')));
+      if (changes.length > 0) keep.push({ ...e, changes });
+    } else if (owned.has(String(e.id ?? ''))) keep.push(e);
+  }
+  if (keep.length !== entries.length) console.warn(JSON.stringify({ msg: 'meta_payload_filtered', kind, dropped: entries.length - keep.length }));
+  return { ...payload, entry: keep };
+}

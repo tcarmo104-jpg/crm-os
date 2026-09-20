@@ -3,13 +3,18 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { PROVIDER_NAME, stateInfo, timeAgo, webhookUrl } from '@/lib/connections';
 import { redirectUri } from '@/lib/social';
-import { siteUrl } from '@/lib/env';
+import { serverOrigin } from '@/server/origin';
+import { googleAppFor, metaAppFor } from '@/server/provider-apps';
 import { readFlash } from '@/lib/flash';
 import { encryptionEnabled } from '@/lib/secrets';
 import { createClient } from '@/lib/supabase/server';
 import { can, getSession } from '@/lib/session';
 import { channelTokenStatus, listChannels, listConnectionEvents } from '@/repositories/inbox';
 import { InboxFeed, KV, Logo, Row, StatusPill } from '@/components/connections/parts';
+import { ReceptionPanel } from '@/components/connections/ReceptionPanel';
+import { diagnoseReception } from '@/lib/reception';
+import { gatherReceptionFacts } from '@/server/meta-webhook';
+import { createAdminClient } from '@/server/supabase-admin';
 import { Notice, SubmitButton } from '@/components/ui';
 import { disconnectConnectionAction, saveConnectionTokenAction, setBusinessAccountAction, syncGmailAction, toggleConnectionStatusAction, verifyConnectionAction } from '../../actions';
 import '../../connections.css';
@@ -18,8 +23,9 @@ export const metadata: Metadata = { title: 'Configurar conexión' };
 const KINDS = ['whatsapp', 'facebook', 'instagram', 'gmail'] as const;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export default async function ConfigureConnectionPage({ params }: { params: Promise<{ provider: string; id: string }> }) {
+export default async function ConfigureConnectionPage({ params, searchParams }: { params: Promise<{ provider: string; id: string }>; searchParams: Promise<{ diag?: string }> }) {
   const { provider, id } = await params;
+  const full = (await searchParams).diag === '1';
   const session = (await getSession())!;
   if (!can(session, 'settings:manage')) redirect('/inbox');
   if (!UUID.test(id) || !(KINDS as readonly string[]).includes(provider)) notFound();
@@ -34,10 +40,15 @@ export default async function ConfigureConnectionPage({ params }: { params: Prom
   const back = `/settings/connections/${c.kind}/${id}`;
   const oauthStart = c.kind === 'gmail' ? '/api/connections/google/start' : '/api/connections/meta/start';
   const now = new Date();
-  const hook = webhookUrl(siteUrl());
+  const origin = await serverOrigin();
+  const hook = webhookUrl(origin);
+  const orgApps = { meta: await metaAppFor(createAdminClient(), org.orgId), google: await googleAppFor(createAdminClient(), org.orgId) };
   const yes = (v: boolean, ok: string, no: string) => <span className={`cx-pill cx-pill--${v ? 'ok' : 'danger'}`}><i aria-hidden="true" />{v ? ok : no}</span>;
   const quality = typeof c.metadata.quality_rating === 'string' ? c.metadata.quality_rating : null;
   const disconnected = c.connectionStatus === 'disconnected';
+  const diag = c.kind === 'whatsapp' && !disconnected
+    ? diagnoseReception(await gatherReceptionFacts(createAdminClient(), { id, orgId: org.orgId, metadata: c.metadata, lastWebhookAt: c.lastWebhookAt }, { full, origin }))
+    : null;
 
   return (
     <div className="cx cx-detail">
@@ -55,6 +66,8 @@ export default async function ConfigureConnectionPage({ params }: { params: Prom
 
       {flash ? <Notice kind={flash.kind}>{flash.message}</Notice> : null}
       <p className={`cx-banner cx-banner--${info.tone}`}>{info.message(pname)}</p>
+
+      {diag ? <ReceptionPanel verdict={diag.verdict} steps={diag.steps} channelId={id} back={back} full={full} /> : null}
 
       <section className="cx-panel" aria-labelledby="cx-estado">
         <div className="cx-panel-head">
@@ -95,17 +108,17 @@ export default async function ConfigureConnectionPage({ params }: { params: Prom
           <h2 id="cx-webhook">Recepción de correos</h2>
           <p className="cx-hint">Gmail no envía avisos al CRM: el CRM revisa tu bandeja cada vez que corre la tarea programada, y al pulsar «Sincronizar ahora». Solo trae correos directos de personas (no promociones, notificaciones ni tus enviados) y los une al cliente que tenga ese correo.</p>
           <KV>
-            <Row k="Credenciales de Google (servidor)">{yes(Boolean(process.env.GOOGLE_CLIENT_ID?.trim() && process.env.GOOGLE_CLIENT_SECRET?.trim()), 'Configuradas', 'Faltan GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET')}</Row>
-            <Row k="URI de redirección autorizada"><code className="cx-copy">{redirectUri(siteUrl(), 'google')}</code></Row>
+            <Row k="Aplicación de Google">{yes(Boolean(orgApps.google), 'Conectada', 'Falta: conéctala en Conexiones → «Tu aplicación de Google»')}</Row>
+            <Row k="URI de redirección autorizada"><code className="cx-copy">{redirectUri(origin, 'google')}</code></Row>
           </KV>
         </> : <>
           <h2 id="cx-webhook">Recepción de mensajes (webhook)</h2>
           <p className="cx-hint">{c.kind === 'whatsapp' ? 'En Meta → tu app → WhatsApp → Configuración → Webhook, pega esta dirección y el token de verificación, y suscríbete al campo messages. Al verificar, el CRM también suscribe tu app a la cuenta automáticamente.' : 'En Meta → tu app → Webhooks, pega esta dirección y el token de verificación. Producto «Page»: messages, messaging_postbacks, message_deliveries, message_reads. Producto «Instagram»: messages. Al verificar, el CRM suscribe tu app a los mensajes de la página automáticamente.'}</p>
           <KV>
             <Row k="URL de devolución de llamada">{hook ? <code className="cx-copy">{hook}</code> : <span className="cx-alert">Define NEXT_PUBLIC_SITE_URL (con https://) en el servidor.</span>}</Row>
-            <Row k="Token de verificación (servidor)">{yes(Boolean(process.env.META_VERIFY_TOKEN?.trim()), 'Configurado', 'Falta META_VERIFY_TOKEN')}</Row>
-            <Row k="App Secret (servidor)">{yes(Boolean(process.env.META_APP_SECRET?.trim()), 'Configurado', 'Falta META_APP_SECRET')}</Row>
-            <Row k="ID de la app">{process.env.META_APP_ID?.trim() ? <span className="cx-pill cx-pill--ok"><i aria-hidden="true" />Configurado</span> : <span className="cx-muted">{c.kind === 'whatsapp' ? 'No definido: se comprueba que haya alguna app suscrita' : 'Falta META_APP_ID'}</span>}</Row>
+            <Row k="Token de verificación">{yes(Boolean(orgApps.meta?.verifyToken), 'Configurado', 'Falta: conecta tu aplicación de Meta en Conexiones')}</Row>
+            <Row k="Clave secreta de la app">{yes(Boolean(orgApps.meta), 'Configurada', 'Falta: conecta tu aplicación de Meta en Conexiones')}</Row>
+            <Row k="ID de la app">{orgApps.meta?.appId ? <span className="cx-pill cx-pill--ok"><i aria-hidden="true" />Configurado</span> : <span className="cx-muted">{c.kind === 'whatsapp' ? 'No definido: se comprueba que haya alguna app suscrita' : 'Falta META_APP_ID'}</span>}</Row>
           </KV>
           {c.kind === 'whatsapp' ? (
             <form action={setBusinessAccountAction} className="cx-inline">

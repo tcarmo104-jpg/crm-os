@@ -125,7 +125,7 @@ describe('conectar Facebook e Instagram con Meta', () => {
   });
   it('sin la configuración de Meta falla con un mensaje claro', async () => {
     const e = await rejects(completeMetaLogin(admin(), { code: 'x', redirectUri: 'https://crm.test/cb', orgId: org, userId: A }, { fetchImpl, env: {} as never }));
-    expect(e).toBeInstanceOf(UserFacingError); expect(toUserMessage(e)).toMatch(/META_APP_ID/);
+    expect(e).toBeInstanceOf(UserFacingError); expect(toUserMessage(e)).toMatch(/Primero conecta tu aplicación de Meta/);
   });
   it('elige página + Instagram: quedan conectadas, con la app suscrita al webhook, y el token no sale', async () => {
     meta.subscribed = false; meta.posts.length = 0;
@@ -264,7 +264,7 @@ describe('Gmail', () => {
     expect(toUserMessage(await rejects(login()))).toMatch(/acceso permanente/);
     gm.refresh = REFRESH;
     expect(count(`select count(*) from channels where kind = 'gmail' and org_id = '${org}'`)).toBe(0);
-    expect(toUserMessage(await rejects(completeGoogleLogin(a, admin(), { code: 'x', redirectUri: 'x', orgId: org }, { fetchImpl, env: {} as never })))).toMatch(/GOOGLE_CLIENT_ID/);
+    expect(toUserMessage(await rejects(completeGoogleLogin(a, admin(), { code: 'x', redirectUri: 'x', orgId: org }, { fetchImpl, env: {} as never })))).toMatch(/Primero conecta tu aplicación de Google/);
   });
   it('conecta la cuenta, guarda el acceso sin exponerlo y trae solo los correos relevantes, unidos al cliente por su correo', async () => {
     const r = await login();

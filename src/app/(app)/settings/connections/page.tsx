@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { PROVIDERS, stateInfo, timeAgo, webhookUrl, type ProviderKey } from '@/lib/connections';
-import { siteUrl } from '@/lib/env';
 import { encryptionEnabled } from '@/lib/secrets';
 import { readFlash } from '@/lib/flash';
 import { redirectUri } from '@/lib/social';
@@ -11,12 +10,15 @@ import { can, getSession } from '@/lib/session';
 import type { ChannelRow } from '@/lib/types';
 import { listChannels } from '@/repositories/inbox';
 import { InboxFeed, KV, Logo, Row, StatusPill } from '@/components/connections/parts';
+import { AppsPanel } from '@/components/connections/AppsPanel';
 import { Notice, SubmitButton } from '@/components/ui';
+import { serverOrigin } from '@/server/origin';
+import { googleAppFor, metaAppFor, providerAppStatus } from '@/server/provider-apps';
+import { createAdminClient } from '@/server/supabase-admin';
 import { connectWhatsAppAction, disconnectConnectionAction, syncGmailAction, verifyConnectionAction } from './actions';
 import './connections.css';
 
 export const metadata: Metadata = { title: 'Conexiones' };
-const env = (k: string) => Boolean(process.env[k]?.trim());
 
 const subtitle = (c: ChannelRow) => (c.kind === 'gmail' ? c.externalId : c.kind === 'facebook' ? `Página · ID ${c.externalId}` : c.kind === 'instagram' ? `Cuenta · ID ${c.externalId}` : c.displayPhone ?? `ID ${c.externalId}`);
 const titleOf = (c: ChannelRow) => (c.kind === 'gmail' ? c.externalId : c.accountName ?? c.name);
@@ -26,14 +28,19 @@ export default async function ConnectionsPage() {
   if (!can(session, 'settings:manage')) redirect('/inbox');
   const org = session.active!;
   const db = await createClient();
-  const [channels, flash] = await Promise.all([listChannels(db, org.orgId), readFlash()]);
+  const admin = createAdminClient();
+  const origin = await serverOrigin();
+  const [channels, flash, metaApp, googleApp, ownMeta, ownGoogle] = await Promise.all([
+    listChannels(db, org.orgId), readFlash(), metaAppFor(admin, org.orgId), googleAppFor(admin, org.orgId),
+    providerAppStatus(db, org.orgId, 'meta').catch(() => null), providerAppStatus(db, org.orgId, 'google').catch(() => null),
+  ]);
   const isLive = (c: ChannelRow) => c.connectionStatus === 'connected' && c.status === 'active';
   const liveCount = channels.filter(isLive).length;
-  const metaOk = env('META_APP_ID') && env('META_APP_SECRET');
-  const googleOk = env('GOOGLE_CLIENT_ID') && env('GOOGLE_CLIENT_SECRET');
-  const webhookOk = env('META_APP_SECRET') && env('META_VERIFY_TOKEN');
+  const metaOk = Boolean(metaApp?.appId && metaApp.secret);
+  const googleOk = Boolean(googleApp);
+  const webhookOk = Boolean(metaApp?.verifyToken);
   const now = new Date();
-  const site = siteUrl();
+  const site = origin;
 
   const setup = (key: ProviderKey) => (
     <details className="cx-setup">
@@ -41,15 +48,15 @@ export default async function ConnectionsPage() {
       {key === 'whatsapp' || key === 'facebook' || key === 'instagram' ? (
         <KV>
           <Row k="URL del webhook"><code className="cx-copy">{webhookUrl(site) ?? 'Define NEXT_PUBLIC_SITE_URL'}</code></Row>
-          <Row k="Token de verificación">{env('META_VERIFY_TOKEN') ? <span className="cx-pill cx-pill--ok"><i aria-hidden="true" />Configurado en el servidor</span> : <span className="cx-pill cx-pill--danger"><i aria-hidden="true" />Falta META_VERIFY_TOKEN</span>}</Row>
-          <Row k="App Secret">{env('META_APP_SECRET') ? <span className="cx-pill cx-pill--ok"><i aria-hidden="true" />Configurado en el servidor</span> : <span className="cx-pill cx-pill--danger"><i aria-hidden="true" />Falta META_APP_SECRET</span>}</Row>
+          <Row k="Token de verificación">{webhookOk ? <span className="cx-pill cx-pill--ok"><i aria-hidden="true" />Configurado</span> : <span className="cx-pill cx-pill--danger"><i aria-hidden="true" />Falta META_VERIFY_TOKEN</span>}</Row>
+          <Row k="App Secret">{Boolean(metaApp) ? <span className="cx-pill cx-pill--ok"><i aria-hidden="true" />Configurado</span> : <span className="cx-pill cx-pill--danger"><i aria-hidden="true" />Falta META_APP_SECRET</span>}</Row>
           {key !== 'whatsapp' ? <Row k="URI de redirección de OAuth"><code className="cx-copy">{redirectUri(site, 'meta')}</code></Row> : null}
-          {key !== 'whatsapp' ? <Row k="ID de la app (META_APP_ID)">{env('META_APP_ID') ? <span className="cx-pill cx-pill--ok"><i aria-hidden="true" />Configurado</span> : <span className="cx-pill cx-pill--danger"><i aria-hidden="true" />Falta META_APP_ID</span>}</Row> : null}
+          {key !== 'whatsapp' ? <Row k="ID de la app (META_APP_ID)">{Boolean(metaApp?.appId) ? <span className="cx-pill cx-pill--ok"><i aria-hidden="true" />Configurado</span> : <span className="cx-pill cx-pill--danger"><i aria-hidden="true" />Falta META_APP_ID</span>}</Row> : null}
         </KV>
       ) : (
         <KV>
           <Row k="URI de redirección autorizada"><code className="cx-copy">{redirectUri(site, 'google')}</code></Row>
-          <Row k="Credenciales de Google">{googleOk ? <span className="cx-pill cx-pill--ok"><i aria-hidden="true" />Configuradas en el servidor</span> : <span className="cx-pill cx-pill--danger"><i aria-hidden="true" />Faltan GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET</span>}</Row>
+          <Row k="Credenciales de Google">{googleOk ? <span className="cx-pill cx-pill--ok"><i aria-hidden="true" />Configuradas</span> : <span className="cx-pill cx-pill--danger"><i aria-hidden="true" />Faltan GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET</span>}</Row>
         </KV>
       )}
       {key === 'facebook' || key === 'instagram' ? <ol><li>En tu app de Meta → Webhooks, pega la URL y el token de verificación.</li><li>Producto «Page»: suscribe <code>messages</code>, <code>messaging_postbacks</code>, <code>message_deliveries</code> y <code>message_reads</code>.</li><li>Producto «Instagram»: suscribe <code>messages</code>.</li><li>En «Inicio de sesión con Facebook» agrega la URI de redirección de arriba.</li></ol> : null}
@@ -78,8 +85,10 @@ export default async function ConnectionsPage() {
       </ol>
 
       {flash ? <Notice kind={flash.kind}>{flash.message}</Notice> : null}
-      {!webhookOk ? <Notice kind="error">Falta configurar en el servidor: {['META_APP_SECRET', 'META_VERIFY_TOKEN'].filter((k) => !env(k)).join(', ')}. Sin esas variables los mensajes de WhatsApp, Messenger e Instagram no llegan. Mira la guía docs/META-WHATSAPP.md.</Notice> : null}
+      {!webhookOk ? <Notice kind="error">Falta conectar tu aplicación de Meta al CRM: sin ese paso los mensajes de WhatsApp, Messenger e Instagram no llegan. Hazlo aquí abajo, en «Tu aplicación de Meta»: pegas dos datos y el CRM hace el resto.</Notice> : null}
       {!encryptionEnabled() ? <p className="cx-hint">Los tokens se guardan protegidos por el acceso a la base de datos. Para cifrarlos además, define <code>CONNECTIONS_ENCRYPTION_KEY</code> en el servidor (opcional).</p> : null}
+
+      <AppsPanel meta={{ source: ownMeta ? 'app' : metaApp ? 'env' : null, clientId: ownMeta?.clientId ?? null }} google={{ source: ownGoogle ? 'app' : googleApp ? 'env' : null, clientId: ownGoogle?.clientId ?? null }} origin={origin} />
 
       <div className="cx-grid">
         {PROVIDERS.map((p) => {
@@ -155,7 +164,7 @@ export default async function ConnectionsPage() {
                     </a>
                   ) : (
                     <><button type="button" className="cx-btn cx-btn--secondary" disabled>{p.key === 'gmail' ? 'Conectar con Google' : 'Conectar con Meta'}</button>
-                      <p className="cx-alert cx-alert--warn">{p.key === 'gmail' ? 'Faltan GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET en el servidor.' : 'Faltan META_APP_ID y META_APP_SECRET en el servidor.'}</p></>
+                      <p className="cx-alert cx-alert--warn">{p.key === 'gmail' ? 'Primero conecta tu aplicación de Google (arriba, en «Tu aplicación de Google»).' : 'Primero conecta tu aplicación de Meta (arriba, en «Tu aplicación de Meta»).'}</p></>
                   )}
                   <p className="cx-hint">{p.key === 'gmail' ? 'Inicias sesión con Google y autorizas leer y responder correos. Nunca guardamos tu contraseña.' : 'Con un solo inicio de sesión eliges tus páginas de Facebook y las cuentas de Instagram asociadas. Solo pedimos los permisos necesarios.'}</p>
                 </div>

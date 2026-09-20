@@ -1,3 +1,4 @@
+import { googleAppFor, metaAppFor } from './provider-apps';
 import 'server-only';
 import { z } from 'zod';
 import { isCheckDue, redact, type ConnectionState } from '@/lib/connections';
@@ -58,8 +59,8 @@ export async function verifyChannel(admin: Admin, channelId: string, deps: Deps 
   }
 
   const kind = ch.kind ?? 'whatsapp';
-  if (kind === 'facebook' || kind === 'instagram') return verifyMetaPage(ch, kind, token, done, failed, deps, env);
-  if (kind === 'gmail') return verifyGmail(ch, token, done, env, deps);
+  if (kind === 'facebook' || kind === 'instagram') return verifyMetaPage(ch, kind, token, done, failed, deps, (await metaAppOf(admin, ch.org_id, env)).appId);
+  if (kind === 'gmail') return verifyGmail(admin, ch, token, done, env, deps);
 
   // 2) El número existe y el token tiene acceso a él
   const phone = await fetchPhoneNumber(ch.external_id, token, deps);
@@ -75,7 +76,7 @@ export async function verifyChannel(admin: Admin, channelId: string, deps: Deps 
   if (waba) {
     const subs = await listSubscribedApps(waba, token, deps);
     if (!subs.ok) return failed(subs);
-    const appId = (env.META_APP_ID ?? '').trim();
+    const appId = (await metaAppOf(admin, ch.org_id, env)).appId;
     const subscribed = appId ? subs.data.includes(appId) : subs.data.length > 0;
     if (!subscribed) {
       const sub = await subscribeApp(waba, token, deps);
@@ -165,10 +166,13 @@ export async function resolveManagedChannel(db: ServerSupabase, orgId: string, c
 
 // ---------------------------------------------------------------------------------------------- Facebook / Instagram
 type Done = (state: ConnectionState, code: string | null, detail: string, extra?: { name?: string | null; phone?: string | null; waba?: string | null; meta?: Record<string, unknown> }) => Promise<VerifyOutcome>;
-const metaApp = (env: NodeJS.ProcessEnv) => ({ appId: (env.META_APP_ID ?? '').trim(), appSecret: (env.META_APP_SECRET ?? '').trim() });
-const googleApp = (env: NodeJS.ProcessEnv) => ({ clientId: (env.GOOGLE_CLIENT_ID ?? '').trim(), clientSecret: (env.GOOGLE_CLIENT_SECRET ?? '').trim() });
+// La aplicación de Meta/Google de una organización: la SUYA (guardada en el CRM) o, si no tiene, la de la plataforma (variables de Vercel).
+const metaAppOf = async (admin: Admin, orgId: string, env: NodeJS.ProcessEnv) => { const a = await metaAppFor(admin, orgId, env); return { appId: a?.appId || (env.META_APP_ID ?? '').trim(), appSecret: a?.secret ?? (env.META_APP_SECRET ?? '').trim() }; };
+const googleAppOf = async (admin: Admin, orgId: string, env: NodeJS.ProcessEnv) => { const a = await googleAppFor(admin, orgId, env); return { clientId: a?.clientId ?? '', clientSecret: a?.clientSecret ?? '' }; };
+const NEED_META = 'Primero conecta tu aplicación de Meta: en Conexiones, «Tu aplicación de Meta», pega el Identificador y la Clave secreta.';
+const NEED_GOOGLE = 'Primero conecta tu aplicación de Google: en Conexiones, «Tu aplicación de Google», pega el ID de cliente y el secreto.';
 
-async function verifyMetaPage(ch: ChannelRow, kind: 'facebook' | 'instagram', token: string, done: Done, failed: (f: GraphFailure) => Promise<VerifyOutcome>, deps: Deps, env: NodeJS.ProcessEnv): Promise<VerifyOutcome> {
+async function verifyMetaPage(ch: ChannelRow, kind: 'facebook' | 'instagram', token: string, done: Done, failed: (f: GraphFailure) => Promise<VerifyOutcome>, deps: Deps, appId: string): Promise<VerifyOutcome> {
   const pageId = kind === 'facebook' ? ch.external_id : String(ch.metadata?.page_id ?? '');
   let name: string | null = null; let phone: string | null = null;
   if (kind === 'facebook') {
@@ -182,7 +186,7 @@ async function verifyMetaPage(ch: ChannelRow, kind: 'facebook' | 'instagram', to
   }
   const extra = { name, phone, meta: kind === 'instagram' ? { username: (name ?? '').replace(/^@/, '') } : {} };
   if (!/^\d{5,30}$/.test(pageId)) return done('needs_auth', 'no_page', 'La cuenta de Instagram no tiene una página de Facebook asociada. Vuelve a autorizar la conexión.', extra);
-  const sub = await pageSubscription(pageId, token, metaApp(env).appId, deps);
+  const sub = await pageSubscription(pageId, token, appId, deps);
   if (!sub.ok) return failed(sub);
   if (!sub.data) {
     const r = await subscribePage(pageId, token, deps);
@@ -193,9 +197,9 @@ async function verifyMetaPage(ch: ChannelRow, kind: 'facebook' | 'instagram', to
 }
 
 const googleFail = (f: GoogleFailure, done: Done) => done(f.state ?? 'error', f.code, f.detail);
-async function verifyGmail(ch: ChannelRow, refreshToken: string, done: Done, env: NodeJS.ProcessEnv, deps: Deps): Promise<VerifyOutcome> {
-  const app = googleApp(env);
-  if (!app.clientId || !app.clientSecret) return done('error', 'not_configured', 'Faltan GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET en el servidor.');
+async function verifyGmail(admin: Admin, ch: ChannelRow, refreshToken: string, done: Done, env: NodeJS.ProcessEnv, deps: Deps): Promise<VerifyOutcome> {
+  const app = await googleAppOf(admin, ch.org_id, env);
+  if (!app.clientId || !app.clientSecret) return done('error', 'not_configured', NEED_GOOGLE);
   const tok = await refreshGoogleToken(refreshToken, app, deps);
   if (!tok.ok) return googleFail(tok, done);
   const profile = await gmailProfile(tok.data.access_token ?? '', deps);
@@ -209,8 +213,8 @@ export interface MetaSession { pages: { id: string; name: string; token: string;
 
 /** Tras el regreso de Meta: cambia el código por tokens, lista las páginas y las guarda 15 min mientras se elige. */
 export async function completeMetaLogin(admin: Admin, o: { code: string; redirectUri: string; orgId: string; userId: string }, deps: Deps = {}): Promise<string> {
-  const env = deps.env ?? process.env; const app = metaApp(env);
-  if (!app.appId || !app.appSecret) throw new UserFacingError('Falta configurar META_APP_ID y META_APP_SECRET en el servidor.');
+  const env = deps.env ?? process.env; const app = await metaAppOf(admin, o.orgId, env);
+  if (!app.appId || !app.appSecret) throw new UserFacingError(NEED_META);
   const short = await exchangeMetaCode(o.code, o.redirectUri, app, deps);
   if (!short.ok || !short.data.access_token) throw new UserFacingError('Meta no aceptó la autorización. Vuelve a intentarlo.');
   const long = await extendMetaToken(short.data.access_token, app, deps);
@@ -262,8 +266,8 @@ export async function connectMetaSelection(db: ServerSupabase, admin: Admin, o: 
 
 /** Tras el regreso de Google: valida permisos, obtiene el correo y guarda el acceso permanente (refresh token). */
 export async function completeGoogleLogin(db: ServerSupabase, admin: Admin, o: { code: string; redirectUri: string; orgId: string }, deps: Deps = {}): Promise<{ channelId: string; email: string; outcome: VerifyOutcome; synced: number }> {
-  const env = deps.env ?? process.env; const app = googleApp(env);
-  if (!app.clientId || !app.clientSecret) throw new UserFacingError('Falta configurar GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET en el servidor.');
+  const env = deps.env ?? process.env; const app = await googleAppOf(admin, o.orgId, env);
+  if (!app.clientId || !app.clientSecret) throw new UserFacingError(NEED_GOOGLE);
   const tok = await exchangeGoogleCode(o.code, o.redirectUri, app, deps);
   if (!tok.ok || !tok.data.access_token) throw new UserFacingError('Google no aceptó la autorización. Vuelve a intentarlo.');
   const granted = (tok.data.scope ?? '').split(' ');
@@ -289,13 +293,14 @@ const MAX_PER_RUN = 40;
  * descarta promociones/notificaciones/propios y los une al cliente por su correo. Es repetible: un correo ya guardado se reconoce.
  */
 export async function syncGmail(admin: Admin, channelId: string, deps: Deps = {}): Promise<SyncResult> {
-  const env = deps.env ?? process.env; const app = googleApp(env);
+  const env = deps.env ?? process.env;
   const q = await admin.from('channels').select('id, org_id, kind, metadata, external_id, business_account_id, connection_status, last_webhook_at, connected_at, created_at').eq('id', channelId).maybeSingle();
   const ch = q.data as ChannelRow | null;
   if (q.error || !ch || ch.kind !== 'gmail') throw new Error('channel_not_found');
+  const app = await googleAppOf(admin, ch.org_id, env);
   if (ch.connection_status === 'disconnected') return { ingested: 0, skipped: 0, note: 'disconnected' };
   const fail = async (state: ConnectionState, code: string, detail: string) => { await record(admin, channelId, state, code, detail); return { ingested: 0, skipped: 0, note: code } as SyncResult; };
-  if (!app.clientId || !app.clientSecret) return fail('error', 'not_configured', 'Faltan GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET en el servidor.');
+  if (!app.clientId || !app.clientSecret) return fail('error', 'not_configured', NEED_GOOGLE);
 
   const cred = await admin.rpc('channel_credentials', { p_channel: channelId });
   const stored = typeof cred.data === 'string' && cred.data ? cred.data : null;

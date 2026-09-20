@@ -1,5 +1,5 @@
 -- =============================================================================
--- CRM OS · ACTUALIZACIÓN: migraciones 0020 en adelante (para un proyecto que YA tiene 0001 a 0019)
+-- CRM OS · ACTUALIZACIÓN: migraciones 0022 en adelante (para un proyecto que YA tiene 0001 a 0021)
 -- Pégalo entero en SQL Editor → New query → Run. Va en UNA transacción: si algo falla,
 -- no queda nada a medias y puedes corregir y volver a ejecutarlo.
 -- Al final debe mostrar una fila con estado = LISTO.
@@ -14,7 +14,7 @@ do $$ begin
   if to_regclass('public.invitations') is null then
     raise exception 'FALTA la migración 0005 (invitaciones). Avísame para darte el archivo correcto.';
   end if;
-  if to_regclass('public.tasks') is null and 20 > 10 then
+  if to_regclass('public.tasks') is null and 22 > 10 then
     raise exception 'FALTAN las migraciones de la Fase 3 (0009 y 0010). Avísame para darte el archivo correcto.';
   end if;
   if to_regclass('public.tags') is null then
@@ -32,83 +32,10 @@ do $$ begin
   if to_regclass('public.attachment_uploads') is null then
     raise exception 'FALTA la migración 0019 (Envío de archivos). Instala primero setup-desde-0019.sql o avísame.';
   end if;
-end $$;
-
--- ---------------- 20260919000020_opportunity_channel_gmail.sql ----------------
--- =============================================================================
--- 0020 CORRECCIÓN: oportunidades de clientes que escribieron por Gmail
--- =============================================================================
--- Error: al crear una oportunidad, el disparador `app.opportunities_defaults` copia el TIPO DE CANAL de la última conversación del
--- cliente (`channels.kind`). Desde que existe Gmail ese tipo es «gmail», pero la restricción de `opportunities.channel` solo admite
--- «email» → crear la oportunidad de un cliente cuya última conversación fue por Gmail fallaba con un error de base de datos.
--- Arreglo: «gmail» se guarda como «email» (whatsapp, instagram y facebook ya coinciden). Mismo cuerpo que en 0015, con esa única diferencia.
--- =============================================================================
-create or replace function app.opportunities_defaults() returns trigger
-language plpgsql security definer set search_path = '' as $$
-declare v_conv uuid; v_kind text;
-begin
-  if tg_op = 'INSERT' then
-    if new.number is null then
-      new.number := 'OPP-' || lpad(app.next_number(new.org_id, 'opportunity')::text, 4, '0');
-    end if;
-    if new.conversation_id is null then
-      select c.id, ch.kind into v_conv, v_kind
-        from public.conversations c join public.channels ch on ch.id = c.channel_id
-       where c.customer_id = new.customer_id and c.org_id = new.org_id
-       order by c.last_message_at desc nulls last, c.created_at desc limit 1;
-      new.conversation_id := v_conv;
-      -- El canal de la oportunidad usa el vocabulario comercial: un correo de Gmail es «email».
-      if new.channel is null then new.channel := case when v_kind = 'gmail' then 'email' else v_kind end; end if;
-    end if;
-  elsif new.number is distinct from old.number then
-    raise exception 'opportunity number is immutable' using errcode = '23514';
+  if to_regclass('public.provider_apps') is not null then
+    raise exception 'Este proyecto YA tiene instalada la migración 0022 (existe la tabla provider_apps). No ejecutes este archivo: avísame.';
   end if;
-  if new.conversation_id is not null
-     and (tg_op = 'INSERT' or new.conversation_id is distinct from old.conversation_id)
-     and current_setting('app.customer_merge', true) is distinct from 'on'
-     and not exists (select 1 from public.conversations c where c.id = new.conversation_id and c.customer_id = new.customer_id and c.org_id = new.org_id) then
-    raise exception 'conversation_customer_mismatch' using errcode = '23514';
-  end if;
-  return new;
 end $$;
-
-
--- ---------------- 20260919000021_webhook_stats.sql ----------------
--- =============================================================================
--- 0021 DIAGNÓSTICO DE RECEPCIÓN: qué pasa cuando Meta llama al CRM
--- =============================================================================
--- Hasta ahora, si Meta llamaba al webhook y algo fallaba (firma inválida por una clave equivocada, token de verificación distinto,
--- variable ausente), solo quedaba una línea en los registros internos de Vercel: desde el CRM era imposible saber si Meta NO llega,
--- si llega y se RECHAZA, o si llega y no se procesa. Esta tabla cuenta, por día y por resultado, cada llamada (sin guardar ningún
--- contenido, ninguna clave ni datos de clientes) para que el CRM pueda decirlo con claridad.
--- =============================================================================
-create table public.webhook_stats (
-  day     date        not null default current_date,
-  outcome text        not null check (outcome in ('verify_ok', 'verify_rejected', 'accepted', 'bad_signature', 'no_secret', 'bad_payload')),
-  hits    integer     not null default 0 check (hits >= 0),
-  last_at timestamptz not null default now(),
-  primary key (day, outcome)
-);
-alter table public.webhook_stats enable row level security;
-revoke all on public.webhook_stats from anon, authenticated;       -- solo el servidor la toca, por las funciones de abajo
-
-create or replace function public.bump_webhook_stat(p_outcome text) returns void
-language plpgsql security definer set search_path = '' as $$
-begin
-  insert into public.webhook_stats (day, outcome, hits) values (current_date, p_outcome, 1)
-  on conflict (day, outcome) do update set hits = public.webhook_stats.hits + 1, last_at = now();
-  -- Limpieza barata y ocasional: solo se conservan 30 días.
-  if random() < 0.02 then delete from public.webhook_stats where day < current_date - 30; end if;
-end $$;
-
-create or replace function public.webhook_stats_summary(p_days integer default 14) returns table (outcome text, hits bigint, last_at timestamptz)
-language sql security definer set search_path = '' stable as $$
-  select s.outcome, sum(s.hits)::bigint, max(s.last_at) from public.webhook_stats s where s.day >= current_date - greatest(p_days, 1) group by s.outcome
-$$;
-
-revoke all on function public.bump_webhook_stat(text), public.webhook_stats_summary(integer) from public, anon, authenticated;
-grant execute on function public.bump_webhook_stat(text), public.webhook_stats_summary(integer) to service_role;
-
 
 -- ---------------- 20260919000022_provider_apps.sql ----------------
 -- =============================================================================
