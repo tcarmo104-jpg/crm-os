@@ -87,9 +87,11 @@ export function toUserMessage(err: unknown): string {
 
   if (msg.includes('conversation_customer_mismatch')) return 'Esa conversación pertenece a otro cliente: solo se puede vincular una conversación del mismo cliente.';
   // Bandeja (WhatsApp)
-  if (msg.includes('window_closed')) return 'Pasaron más de 24 horas desde el último mensaje del cliente. WhatsApp solo permite enviar una plantilla aprobada.';
+  if (msg.includes('window_closed')) return 'Pasaron más de 24 horas desde el último mensaje del cliente. En WhatsApp solo puedes enviar una plantilla aprobada; en Messenger, Instagram y Gmail debes esperar a que vuelva a escribir.';
+  if (msg.includes('channel_taken')) return 'Esa cuenta ya está conectada en otra organización.';
   if (msg.includes('do_not_contact')) return 'Este cliente pidió no ser contactado. Solo puedes responderle dentro de las 24 h posteriores a su último mensaje, y sin plantillas.';
-  if (msg.includes('channel_paused')) return 'El canal de WhatsApp está en pausa. Actívalo en Configuración → Canales.';
+  if (msg.includes('connection_unavailable')) return 'Este número de WhatsApp está desconectado y no puede enviar mensajes. Reconéctalo en Configuración → Conexiones.';
+  if (msg.includes('channel_paused')) return 'El canal de WhatsApp está en pausa. Actívalo en Configuración → Conexiones.';
   if (msg.includes('message_empty')) return 'Escribe el mensaje.';
   if (msg.includes('message_too_long')) return 'El mensaje es demasiado largo (máximo 4096 caracteres).';
   if (msg.includes('template_unavailable')) return 'Esa plantilla no está disponible (desactivada o de otro canal).';

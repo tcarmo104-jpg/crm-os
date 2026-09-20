@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { can, getSession } from '@/lib/session';
 import { readFlash } from '@/lib/flash';
-import { INBOX_CONTEXT_COOKIE, inboxHref, parseContextCookie, parseInboxQuery, type ChannelKind } from '@/lib/inbox-view';
+import { INBOX_CONTEXT_COOKIE, contactLabel, inboxHref, parseContextCookie, parseInboxQuery, replyWindowMs, type ChannelKind } from '@/lib/inbox-view';
 import { buildThread } from '@/lib/thread';
 import { describeEvent } from '@/lib/timeline';
 import {
@@ -76,7 +76,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   const custName = new Map(customers.map((c) => [c.id, c.fullName]));
   const rows: ListRow[] = page.items.map((c) => ({
     conv: conversation && c.id === conversation.id ? conversation : c,
-    name: custName.get(c.customerId) ?? c.contactName ?? `+${c.threadKey}`,
+    name: custName.get(c.customerId) ?? c.contactName ?? (channelKind.get(c.channelId) === 'whatsapp' ? `+${c.threadKey}` : c.threadKey),
     ownerName: c.ownerId ? memberName(c.ownerId) : null,
     tags: tagMap.get(c.customerId) ?? [],
     channel: channelKind.get(c.channelId) ?? 'whatsapp',
@@ -111,17 +111,18 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
         events.filter((e) => SYSTEM_EVENTS.has(e.type)).map((e) => ({ id: e.id, occurredAt: e.occurredAt, text: describeEvent(e, memberName).title })),
       );
       const channel = channels.find((c) => c.id === conversation.channelId);
-      const closesAt = conversation.lastInboundAt ? new Date(conversation.lastInboundAt).getTime() + DAY : 0;
+      const kindOfConv = channelKind.get(conversation.channelId) ?? 'whatsapp';
+      const closesAt = conversation.lastInboundAt ? new Date(conversation.lastInboundAt).getTime() + replyWindowMs(kindOfConv) : 0;
       const windowOpen = closesAt > Date.now();
       const closesLabel = new Intl.DateTimeFormat('es', { timeZone: org.orgTimezone, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(closesAt));
       const name = ctx.customer.fullName;
-      const phone = ctx.identifiers.find((i) => i.type === 'phone')?.value.replace(/^\+/, '') ?? conversation.threadKey;
+      const phone = contactLabel(kindOfConv, conversation.threadKey, ctx.identifiers.find((i) => i.type === 'phone')?.value.replace(/^\+/, '') ?? null);
       const mine = messages.filter((m) => m.direction === 'outbound').length + ctx.notes.length;
 
       chat = (
         <>
           <ChatHeader
-            query={query} conversationId={conversation.id} customerId={ctx.customer.id} name={name} phone={phone} channel={channelKind.get(conversation.channelId) ?? 'whatsapp'}
+            query={query} conversationId={conversation.id} customerId={ctx.customer.id} name={name} phone={phone} channel={kindOfConv}
             status={conversation.status} needsReply={conversation.needsReply} ownerId={ctx.customer.ownerId} ownerName={ctx.customer.ownerId ? memberName(ctx.customer.ownerId) : null}
             advisors={advisors} canAssign={canAssign} canUpdate={canUpdate} actions={{ assign: assignOwnerAction, status: setConversationStatusAction }}
           />
@@ -129,7 +130,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
           <Thread items={items} timeZone={org.orgTimezone} nameOf={memberName} resetKey={conversation.id} emptyText="Aún no hay mensajes en esta conversación." />
           <Composer
             key={`${conversation.id}:${mine}`} conversationId={conversation.id} customerId={ctx.customer.id}
-            canReply={canUpdate} windowOpen={windowOpen} windowClosesLabel={closesLabel} dnc={ctx.customer.doNotContact} paused={channel?.status === 'paused'}
+            channel={kindOfConv} canReply={canUpdate} windowOpen={windowOpen} windowClosesLabel={closesLabel} dnc={ctx.customer.doNotContact} paused={channel?.status === 'paused'}
             quickReplies={quick} templates={templates.filter((t) => t.channelId === conversation.channelId && t.status === 'approved').map((t) => ({ id: t.id, name: t.name, body: t.body, paramCount: t.paramCount }))}
             actions={{ send: sendMessageAction, note: sendNoteAction, template: sendTemplateAction, createQuick: createQuickReplyAction, deleteQuick: deleteQuickReplyAction }}
           />

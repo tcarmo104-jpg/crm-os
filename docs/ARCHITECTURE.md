@@ -407,3 +407,41 @@ Implementada en la migración `0004` y fijada por pruebas (una prueba falla si o
 - Orden manual dentro de una columna, edición de valor/fecha desde el panel y acciones masivas.
 - Accesibilidad: hay roles ARIA, foco visible y etiquetas, pero no se auditó con lector de pantalla.
 
+
+## 20. Conexiones (migración 0016)
+
+`channels` pasa a ser el modelo de **conexiones** (no se creó una tabla equivalente). Se añadieron: `connection_status`
+(pending · connected · needs_auth · token_expired · error · webhook_missing · disconnected), `business_account_id`,
+`account_name`, `connected_at`, `disconnected_at`, `last_sync_at`, `last_webhook_at`, `last_checked_at`, `last_error_code`
+y `metadata` (≤ 4 KB). `active/paused` sigue siendo una pausa operativa, distinta de la salud de la conexión.
+
+- **Registro técnico** `connection_events` (solo `settings:manage`; conserva 100 por conexión; redacta tokens en SQL y en TypeScript).
+- **Solo el servidor** escribe resultados: `record_channel_health`, `touch_channel` (throttle de 1 min por fila; la actividad real —mensaje
+  recibido / envío aceptado— recupera una conexión, un envío NO arregla un webhook ausente).
+- **Desconectar** borra el token y bloquea el envío (`connection_unavailable`); conserva conversaciones y mensajes; nada «reconecta» un
+  número desconectado salvo guardar un token/autorizar de nuevo.
+- `src/server/connections.ts`: `verifyChannel` (por proveedor), `connectWhatsApp` (valida con Meta ANTES de guardar), barrido periódico
+  (`sweepConnections`, máx. 5 por pasada) y `resolveManagedChannel` (guard de administrador + organización antes de usar el cliente de servidor).
+- Cifrado opcional AES-256-GCM (`CONNECTIONS_ENCRYPTION_KEY`, formato `enc:v1:`); los tokens antiguos sin cifrar se siguen leyendo.
+
+## 21. Facebook, Instagram y Gmail (migración 0017)
+
+Mismo modelo: `channels.kind ∈ whatsapp | facebook | instagram | gmail`; `external_id` = ID de página / ID de Instagram / correo.
+La clave de conversación (`thread_key`) acepta ahora un correo además de un identificador numérico.
+
+- **Recepción** `ingest_channel_message`: canal → identificador externo → cliente existente → continuar la conversación; si no existe,
+  crear cliente + lead **una sola vez** (identificadores `facebook` / `instagram` / `email` de `customer_identifiers`; un correo de un
+  cliente existente se une a ÉL). Idempotente por `external_id` del mensaje.
+- **Meta (Messenger/Instagram)**: el webhook `/api/webhooks/meta` es el mismo; `object: page | instagram` se enruta a `processSocialPayload`.
+  El nombre del contacto se pide a Meta una vez (mejor esfuerzo, `set_contact_profile` solo reemplaza el nombre provisional).
+- **Gmail**: sin push; sincronización por historial (`history.list`; primera vez, últimos 7 días; si el historial caduca, relee la bandeja).
+  El punto de lectura **solo avanza si todo salió bien**. Filtro de relevancia en `shouldSync`. Respuesta con `In-Reply-To`/`References`/`threadId`.
+- **Inicio de sesión** (`src/server/oauth-flow.ts`): `state` firmado (HMAC) ligado a administrador + organización + cookie del navegador,
+  caduca a 10 min. Meta devuelve varias páginas: se guardan 15 min en `oauth_sessions` (solo el servidor la lee; se entrega UNA vez)
+  mientras el administrador elige.
+- **Envío por proveedor** (`deliverMessage`): «como máximo una vez» (un resultado desconocido no se reenvía). Ventana de respuesta: 24 h
+  (WhatsApp/Facebook/Instagram) y 30 días (Gmail); las plantillas son solo de WhatsApp. Un token vencido o sin permiso marca la CONEXIÓN;
+  un mensaje fuera de ventana (código 10 / subcódigo 2018278) NO.
+- **Pendiente / límites conocidos**: Messenger/Instagram no usan la etiqueta *human agent* (7 días); los adjuntos se anuncian ([Imagen]…) y se
+  guarda su enlace (caduca), pero no se descargan; los correos enviados desde Gmail directamente no se importan; la misma persona por dos
+  canales distintos son dos clientes hasta que se fusionen (herramienta de Duplicados).

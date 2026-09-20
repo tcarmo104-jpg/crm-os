@@ -40,7 +40,7 @@ describe('envío por la API de Meta', () => {
   it('token vencido (401 / código 190) es definitivo y explica cómo arreglarlo', async () => {
     const r = await sendWhatsApp({ ...base, fetchImpl: reply(401, { error: { message: 'Invalid OAuth access token', code: 190 } }) as never });
     expect(r).toMatchObject({ ok: false, definitive: true, code: '190' });
-    expect((r as { message: string }).message).toMatch(/Configuración → Canales/);
+    expect((r as { message: string }).message).toMatch(/Configuración → Conexiones/);
   });
   it('resultado DESCONOCIDO (5xx, red, 200 sin id, tiempo agotado): NO es definitivo → no se reenvía solo', async () => {
     expect(await sendWhatsApp({ ...base, fetchImpl: reply(503, { error: {} }) as never })).toMatchObject({ ok: false, definitive: false });

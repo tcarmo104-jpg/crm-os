@@ -8,7 +8,7 @@ FROM="${1:-1}"
 if [ "$FROM" = "1" ]; then OUT=supabase/setup-all.sql; else OUT="supabase/setup-desde-$(printf %04d "$FROM").sql"; fi
 
 # Primera tabla que crea cada migración: si ya existe, esa migración ya está instalada.
-sentinel() { case "$1" in 6) echo custom_field_definitions;; 7) echo customers;; 8) echo api_keys;; 9) echo pipelines;; 10) echo tasks;; 11) echo products;; 12) echo sales;; 13) echo channels;; 14) echo tags;; *) echo "";; esac; }
+sentinel() { case "$1" in 6) echo custom_field_definitions;; 7) echo customers;; 8) echo api_keys;; 9) echo pipelines;; 10) echo tasks;; 11) echo products;; 12) echo sales;; 13) echo channels;; 14) echo tags;; 16) echo connection_events;; 17) echo oauth_sessions;; *) echo "";; esac; }
 
 {
   echo "-- ============================================================================="
@@ -51,6 +51,21 @@ sentinel() { case "$1" in 6) echo custom_field_definitions;; 7) echo customers;;
     elif [ "$FROM" -ge 13 ]; then
       echo "  if to_regclass('public.sales') is null then"
       echo "    raise exception 'FALTAN las migraciones de la Fase 4 (0011 y 0012). Instala primero setup-desde-0011.sql o avísame.';"
+      echo "  end if;"
+    fi
+    if [ "$FROM" -ge 16 ]; then
+      echo "  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'opportunities' and column_name = 'number') then"
+      echo "    raise exception 'FALTA la migración 0015 (Oportunidades). Instala primero setup-desde-0015.sql o avísame.';"
+      echo "  end if;"
+    fi
+    if [ "$FROM" = "17" ]; then
+      echo "  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'channels' and column_name = 'connection_status') then"
+      echo "    raise exception 'FALTA la migración 0016 (Conexiones de WhatsApp). Instala primero setup-desde-0016.sql o avísame.';"
+      echo "  end if;"
+    fi
+    if [ "$FROM" = "16" ]; then
+      echo "  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'channels' and column_name = 'connection_status') then"
+      echo "    raise exception 'Este proyecto YA tiene instalada la migración 0016 (existe la columna connection_status en channels). Si falta solo la 0017, usa setup-desde-0017.sql.';"
       echo "  end if;"
     fi
     if [ "$FROM" = "15" ]; then

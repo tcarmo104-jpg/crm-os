@@ -80,6 +80,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { key: 'pipelines', label: 'Pipelines', icon: 'funnel', href: '/settings/pipelines' },
       { key: 'duplicates', label: 'Duplicados', icon: 'copy', href: '/settings/duplicates' },
       { key: 'fields', label: 'Campos personalizados', icon: 'tool', href: '/settings/fields' },
+      { key: 'connections', label: 'Conexiones', icon: 'plug', href: '/settings/connections' },
       { key: 'channels', label: 'Canales (WhatsApp)', icon: 'chat', href: '/settings/channels' },
       { key: 'integrations', label: 'Integraciones', icon: 'plug', href: '/settings/integrations' },
       { key: 'settings', label: 'Configuración', icon: 'gear', phase: 13 },

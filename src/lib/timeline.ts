@@ -10,6 +10,8 @@ const ACTIVITY_LABEL: Record<string, string> = { call: 'Llamada', whatsapp: 'Wha
 const s = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
 
 /** Texto legible de un evento del stream. Los tipos desconocidos se muestran genéricos (nunca se rompe la pantalla). */
+const CHANNEL_NAME: Record<string, string> = { whatsapp: 'WhatsApp', facebook: 'Messenger', instagram: 'Instagram', gmail: 'Gmail' };
+
 export function describeEvent(e: TimelineEvent, personName: (id: string | null | undefined) => string): Described {
   const p = e.payload;
   switch (e.type) {
@@ -65,9 +67,9 @@ export function describeEvent(e: TimelineEvent, personName: (id: string | null |
       return { title: `${kind}${dir}`, detail: s(p.summary) };
     }
     case 'conversation.opened':
-      return { title: 'Escribió por WhatsApp por primera vez' };
+      return { title: `Escribió por ${CHANNEL_NAME[s(p.channel) ?? ''] ?? 'WhatsApp'} por primera vez` };
     case 'conversation.reopened':
-      return { title: 'El cliente volvió a escribir por WhatsApp' };
+      return { title: `El cliente volvió a escribir por ${CHANNEL_NAME[s(p.channel) ?? ''] ?? 'WhatsApp'}` };
     case 'quote.created':
       return { title: 'Cotización creada', detail: s(p.number) };
     case 'quote.sent':

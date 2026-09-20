@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Ico } from './icons';
+import { CHANNEL_LABEL, type ChannelKind } from '@/lib/inbox-view';
 
 type Action = (fd: FormData) => Promise<void>;
 export interface ComposerTemplate { id: string; name: string; body: string; paramCount: number }
 export interface ComposerProps {
-  conversationId: string; customerId: string;
+  conversationId: string; customerId: string; channel: ChannelKind;
   canReply: boolean; windowOpen: boolean; windowClosesLabel: string; dnc: boolean; paused: boolean;
   quickReplies: { id: string; title: string; body: string }[];
   templates: ComposerTemplate[];
@@ -60,7 +61,7 @@ export function Composer(p: ComposerProps) {
       ) : p.paused ? (
         <p className="ib-composer-hint ib-composer-hint--warn">El canal está en pausa: no se pueden enviar mensajes.</p>
       ) : !p.windowOpen ? (
-        <p className="ib-composer-hint ib-composer-hint--warn">Pasaron más de 24 h desde el último mensaje del cliente. WhatsApp solo permite enviar una <strong>plantilla aprobada</strong>{p.dnc ? '; y este cliente pidió no ser contactado' : ''}.</p>
+        <p className="ib-composer-hint ib-composer-hint--warn">{p.channel === 'whatsapp' ? <>Pasaron más de 24 h desde el último mensaje del cliente. WhatsApp solo permite enviar una <strong>plantilla aprobada</strong>{p.dnc ? '; y este cliente pidió no ser contactado' : ''}.</> : p.channel === 'gmail' ? <>Pasaron más de 30 días desde el último correo del cliente: espera a que vuelva a escribir.</> : <>Pasaron más de 24 h desde el último mensaje del cliente. {CHANNEL_LABEL[p.channel]} solo permite responder dentro de 24 h: espera a que vuelva a escribir.</>}</p>
       ) : p.dnc ? (
         <p className="ib-composer-hint ib-composer-hint--warn">Este cliente pidió no ser contactado: puedes responderle hasta {p.windowClosesLabel}, sin plantillas.</p>
       ) : (
@@ -83,7 +84,7 @@ export function Composer(p: ComposerProps) {
             <button type="button" className="ib-icon-btn" disabled title="Adjuntar imagen: próximamente" aria-label="Adjuntar imagen (próximamente)"><Ico name="image" /></button>
             <button type="button" className={`ib-icon-btn${pop === 'emoji' ? ' is-on' : ''}`} onClick={() => setPop(pop === 'emoji' ? null : 'emoji')} aria-label="Emojis" aria-expanded={pop === 'emoji'} disabled={blocked}><Ico name="smile" /></button>
             <button type="button" className={`ib-icon-btn${pop === 'quick' ? ' is-on' : ''}`} onClick={() => { setPop(pop === 'quick' ? null : 'quick'); setFilter(''); }} aria-label="Respuestas rápidas" aria-expanded={pop === 'quick'} disabled={blocked}><Ico name="bolt" /></button>
-            {!note ? (
+            {!note && p.channel === 'whatsapp' ? (
               <button type="button" className={`ib-btn ib-btn--ghost ib-btn--sm${pop === 'template' ? ' is-on' : ''}`} onClick={() => setPop(pop === 'template' ? null : 'template')} aria-expanded={pop === 'template'} disabled={p.dnc || p.paused}>Plantillas</button>
             ) : null}
           </div>

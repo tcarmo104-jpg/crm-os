@@ -9,9 +9,19 @@ export const INBOX_TABS = [
 ] as const;
 export type InboxTab = (typeof INBOX_TABS)[number]['key'];
 
-export const CHANNELS = ['whatsapp', 'instagram', 'facebook'] as const;
+export const CHANNELS = ['whatsapp', 'instagram', 'facebook', 'gmail'] as const;
 export type ChannelKind = (typeof CHANNELS)[number];
-export const CHANNEL_LABEL: Record<ChannelKind, string> = { whatsapp: 'WhatsApp', instagram: 'Instagram', facebook: 'Messenger' };
+export const CHANNEL_LABEL: Record<ChannelKind, string> = { whatsapp: 'WhatsApp', instagram: 'Instagram', facebook: 'Messenger', gmail: 'Gmail' };
+
+/** Plazo para responder con texto libre desde el último mensaje del cliente: 24 h en mensajería, 30 días en correo. */
+export const replyWindowMs = (kind: ChannelKind) => (kind === 'gmail' ? 30 : 1) * 24 * 60 * 60 * 1000;
+
+/** Cómo se identifica al contacto en el encabezado (su teléfono, su correo; en Messenger/Instagram no hay dato visible). */
+export function contactLabel(kind: ChannelKind, threadKey: string, phone: string | null): string {
+  if (kind === 'gmail') return threadKey;
+  if (kind === 'whatsapp') return `+${phone ?? threadKey}`;
+  return '';
+}
 
 export interface InboxQuery {
   tab: InboxTab;

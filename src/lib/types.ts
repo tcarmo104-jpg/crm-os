@@ -221,7 +221,12 @@ export interface CaseRow {
 // ---------------------------------------------------------------------------
 // Fase 5: bandeja (WhatsApp)
 // ---------------------------------------------------------------------------
-export interface ChannelRow { id: string; kind: 'whatsapp'; name: string; externalId: string; displayPhone: string | null; status: 'active' | 'paused' }
+export interface ChannelRow {
+  id: string; kind: 'whatsapp' | 'facebook' | 'instagram' | 'gmail'; name: string; externalId: string; displayPhone: string | null; status: 'active' | 'paused';
+  businessAccountId: string | null; accountName: string | null; connectionStatus: string; connectedAt: string | null; disconnectedAt: string | null;
+  lastSyncAt: string | null; lastWebhookAt: string | null; lastCheckedAt: string | null; lastErrorCode: string | null; metadata: Record<string, unknown>;
+}
+export interface ConnectionEventRow { id: number; channelId: string; kind: string; ok: boolean; code: string | null; detail: string | null; createdAt: string }
 export interface TemplateRow { id: string; channelId: string; name: string; language: string; body: string; paramCount: number; status: 'approved' | 'disabled' }
 export interface ConversationRow {
   id: string; channelId: string; customerId: string; threadKey: string; contactName: string | null; status: 'open' | 'closed';

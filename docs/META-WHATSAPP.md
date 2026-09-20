@@ -1,5 +1,11 @@
 # Conectar WhatsApp (API de Meta) — guía paso a paso
 
+> **Actualización (Conexiones):** los números ya no se conectan en «Canales» sino en **Configuración → Conexiones**,
+> que comprueba el token y el número con Meta **antes** de guardar y suscribe el webhook por ti. Ahora se pide además el
+> **ID de la cuenta de WhatsApp Business** (junto al ID del número en Meta) y el token debe incluir los permisos
+> `whatsapp_business_messaging` **y** `whatsapp_business_management`. Facebook, Instagram y Gmail: ver `docs/CONEXIONES.md`.
+
+
 > **Aviso honesto:** esta guía está escrita con la documentación pública de Meta, **no se ha ejecutado contra tu cuenta**.
 > Meta cambia los nombres de los menús con frecuencia. Si algo no coincide, mándame una captura y lo ajustamos.
 

@@ -1,7 +1,8 @@
 import type { ServerSupabase } from '@/lib/supabase/server';
+import { sealSecret } from '@/lib/secrets';
 import { unwrap } from '@/lib/errors';
 import { decodeCursor, encodeCursor } from '@/lib/cursor';
-import type { ChannelRow, ConversationRow, MessageRow, Page, QuickReplyRow, TagColor, TagRow, TemplateRow } from '@/lib/types';
+import type { ChannelRow, ConnectionEventRow, ConversationRow, MessageRow, Page, QuickReplyRow, TagColor, TagRow, TemplateRow } from '@/lib/types';
 import { dateFrom, safeSearchText, type InboxQuery } from '@/lib/inbox-view';
 
 const CONV = 'id, channel_id, customer_id, thread_key, contact_name, status, owner_id, last_message_at, last_inbound_at, last_message_preview, last_direction, needs_reply, unread, unread_count';
@@ -56,10 +57,24 @@ export async function getMessageOutcome(db: ServerSupabase, id: string): Promise
   return r;
 }
 
+const CHANNEL_COLUMNS = 'id, kind, name, external_id, display_phone, status, business_account_id, account_name, connection_status, connected_at, disconnected_at, last_sync_at, last_webhook_at, last_checked_at, last_error_code, metadata';
 export async function listChannels(db: ServerSupabase, orgId: string): Promise<ChannelRow[]> {
-  const rows = unwrap(await db.from('channels').select('id, kind, name, external_id, display_phone, status').eq('org_id', orgId).order('created_at')) as unknown as
-    { id: string; kind: 'whatsapp'; name: string; external_id: string; display_phone: string | null; status: 'active' | 'paused' }[];
-  return rows.map((r) => ({ id: r.id, kind: r.kind, name: r.name, externalId: r.external_id, displayPhone: r.display_phone, status: r.status }));
+  const rows = unwrap(await db.from('channels').select(CHANNEL_COLUMNS).eq('org_id', orgId).order('created_at')) as unknown as
+    { id: string; kind: 'whatsapp' | 'facebook' | 'instagram' | 'gmail'; name: string; external_id: string; display_phone: string | null; status: 'active' | 'paused'; business_account_id: string | null; account_name: string | null;
+      connection_status: string; connected_at: string | null; disconnected_at: string | null; last_sync_at: string | null; last_webhook_at: string | null; last_checked_at: string | null;
+      last_error_code: string | null; metadata: Record<string, unknown> | null }[];
+  return rows.map((r) => ({
+    id: r.id, kind: r.kind, name: r.name, externalId: r.external_id, displayPhone: r.display_phone, status: r.status, businessAccountId: r.business_account_id, accountName: r.account_name,
+    connectionStatus: r.connection_status, connectedAt: r.connected_at, disconnectedAt: r.disconnected_at, lastSyncAt: r.last_sync_at, lastWebhookAt: r.last_webhook_at,
+    lastCheckedAt: r.last_checked_at, lastErrorCode: r.last_error_code, metadata: r.metadata ?? {},
+  }));
+}
+
+/** Registro técnico de una conexión (solo lo ve un administrador; la base de datos lo garantiza). */
+export async function listConnectionEvents(db: ServerSupabase, channelId: string, limit = 20): Promise<ConnectionEventRow[]> {
+  const rows = unwrap(await db.from('connection_events').select('id, channel_id, kind, ok, code, detail, created_at').eq('channel_id', channelId).order('id', { ascending: false }).limit(limit)) as unknown as
+    { id: number; channel_id: string; kind: string; ok: boolean; code: string | null; detail: string | null; created_at: string }[];
+  return rows.map((r) => ({ id: r.id, channelId: r.channel_id, kind: r.kind, ok: r.ok, code: r.code, detail: r.detail, createdAt: r.created_at }));
 }
 
 export async function channelTokenStatus(db: ServerSupabase, orgId: string): Promise<Map<string, boolean>> {
@@ -74,9 +89,17 @@ export async function listTemplates(db: ServerSupabase, orgId: string): Promise<
 }
 
 export async function createChannel(db: ServerSupabase, orgId: string, a: { name: string; phoneNumberId: string; displayPhone?: string; token?: string }): Promise<string> {
-  return unwrap(await db.rpc('create_channel', { p_org: orgId, p_name: a.name, p_external_id: a.phoneNumberId, p_display_phone: a.displayPhone ?? null, p_access_token: a.token ?? null })) as string;
+  return unwrap(await db.rpc('create_channel', { p_org: orgId, p_name: a.name, p_external_id: a.phoneNumberId, p_display_phone: a.displayPhone ?? null, p_access_token: a.token ? sealSecret(a.token) : null })) as string;
 }
-export async function saveChannelToken(db: ServerSupabase, channelId: string, token: string) { unwrap(await db.rpc('save_channel_token', { p_channel: channelId, p_token: token })); }
+export async function saveChannelToken(db: ServerSupabase, channelId: string, token: string) { unwrap(await db.rpc('save_channel_token', { p_channel: channelId, p_token: sealSecret(token) })); }
+export async function connectChannel(db: ServerSupabase, orgId: string, a: { kind: 'facebook' | 'instagram' | 'gmail'; name: string; externalId: string; token: string; displayPhone?: string; accountName?: string; metadata?: Record<string, unknown> }): Promise<string> {
+  return unwrap(await db.rpc('connect_channel', {
+    p_org: orgId, p_kind: a.kind, p_name: a.name, p_external_id: a.externalId, p_display_phone: a.displayPhone ?? null, p_account_name: a.accountName ?? a.name,
+    p_token: sealSecret(a.token), p_metadata: a.metadata ?? {},
+  })) as string;
+}
+export async function setBusinessAccount(db: ServerSupabase, channelId: string, waba: string) { unwrap(await db.rpc('set_channel_business_account', { p_channel: channelId, p_waba: waba })); }
+export async function disconnectChannel(db: ServerSupabase, channelId: string) { unwrap(await db.rpc('disconnect_channel', { p_channel: channelId })); }
 export async function setChannelStatus(db: ServerSupabase, channelId: string, status: 'active' | 'paused') { unwrap(await db.rpc('set_channel_status', { p_channel: channelId, p_status: status })); }
 export async function createTemplate(db: ServerSupabase, orgId: string, a: { channelId: string; name: string; language: string; body: string }) {
   unwrap(await db.from('message_templates').insert({ org_id: orgId, channel_id: a.channelId, name: a.name, language: a.language, body: a.body }).select('id').single());

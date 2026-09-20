@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { can, getSession } from '@/lib/session';
@@ -27,6 +28,7 @@ export default async function ChannelsPage() {
         <p className="muted">Conecta tu número de WhatsApp Business (API de Meta). Los mensajes que lleguen crean clientes y leads solos.</p>
       </header>
       {flash ? <Notice kind={flash.kind}>{flash.message}</Notice> : null}
+      <Notice kind="ok">Conectar, verificar y desconectar números se hace ahora en <Link href="/settings/connections">Configuración → Conexiones</Link>, que comprueba los datos con Meta antes de guardarlos. Aquí siguen las plantillas.</Notice>
 
       <section className="panel" aria-labelledby="webhook-title">
         <div className="panel-head"><h2 id="webhook-title">Datos para configurar Meta</h2></div>

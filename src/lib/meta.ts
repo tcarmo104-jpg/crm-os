@@ -168,7 +168,7 @@ const SEND_ERRORS: Record<string, string> = {
   '131042': 'Hay un problema con el método de pago de WhatsApp Business.',
   '132000': 'La plantilla necesita exactamente la cantidad de datos que define su texto.',
   '130429': 'Se alcanzó el límite de mensajes por segundo. Inténtalo de nuevo en un momento.',
-  '190': 'El token de acceso del canal venció o no es válido. Genera uno nuevo en Meta y actualízalo en Configuración → Canales.',
+  '190': 'El token de acceso del canal venció o no es válido. Genera uno nuevo en Meta y actualízalo en Configuración → Conexiones.',
 };
 /** Oculta cualquier cosa con forma de token de Meta (EAA…): un texto de error jamás debe filtrarlo. */
 const redact = (s: string) => s.replace(/EAA[A-Za-z0-9_-]{15,}/g, '[oculto]');

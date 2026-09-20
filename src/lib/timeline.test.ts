@@ -42,6 +42,9 @@ describe('describeEvent', () => {
   it('describe las conversaciones de WhatsApp', () => {
     expect(describeEvent(ev('conversation.opened', { channel: 'whatsapp' }), name).title).toBe('Escribió por WhatsApp por primera vez');
     expect(describeEvent(ev('conversation.reopened', {}), name).title).toBe('El cliente volvió a escribir por WhatsApp');
+    expect(describeEvent(ev('conversation.opened', { channel: 'gmail' }), name).title).toBe('Escribió por Gmail por primera vez');
+    expect(describeEvent(ev('conversation.opened', { channel: 'facebook' }), name).title).toBe('Escribió por Messenger por primera vez');
+    expect(describeEvent(ev('conversation.reopened', { channel: 'instagram' }), name).title).toBe('El cliente volvió a escribir por Instagram');
   });
 });
 

@@ -3,7 +3,7 @@ import { buildTemplatePayload, buildTextPayload, describeSendError } from '@/lib
 
 export type SendResult =
   | { ok: true; externalId: string }
-  | { ok: false; definitive: true; code: string; message: string }
+  | { ok: false; definitive: true; code: string; subcode?: string | null; message: string }
   | { ok: false; definitive: false; message: string };   // resultado DESCONOCIDO (red, tiempo agotado, 5xx)
 
 export interface SendInput {
@@ -44,14 +44,14 @@ export async function sendWhatsApp(i: SendInput): Promise<SendResult> {
       signal: ctrl.signal,
     });
     const data = (await res.json().catch(() => null)) as
-      { messages?: { id?: string }[]; error?: { code?: number | string; message?: string; error_data?: { details?: string } } } | null;
+      { messages?: { id?: string }[]; error?: { code?: number | string; error_subcode?: number | string; message?: string; error_data?: { details?: string } } } | null;
 
     const id = data?.messages?.[0]?.id;
     if (res.ok && typeof id === 'string' && id) return { ok: true, externalId: id };
     if (res.status >= 500 || (res.ok && !id)) return { ok: false, definitive: false, message: `Respuesta inesperada de WhatsApp (${res.status}).` };
 
     const code = String(data?.error?.code ?? res.status);
-    return { ok: false, definitive: true, code, message: describeSendError(data?.error?.code, data?.error?.error_data?.details ?? data?.error?.message) };
+    return { ok: false, definitive: true, code, subcode: data?.error?.error_subcode !== undefined ? String(data.error.error_subcode) : null, message: describeSendError(data?.error?.code, data?.error?.error_data?.details ?? data?.error?.message) };
   } catch {
     return { ok: false, definitive: false, message: 'No se pudo confirmar el envío (sin respuesta de WhatsApp).' };
   } finally {

@@ -76,6 +76,7 @@ textarea.ib-input { height: auto; padding: 8px 10px; resize: vertical; }
 .ib-chan--whatsapp { background: #25d366; }
 .ib-chan--instagram { background: linear-gradient(45deg, #f9b234, #ee2a7b 55%, #6228d7); }
 .ib-chan--facebook { background: #0a7cff; }
+.ib-chan--gmail { background: #ea4335; }
 
 .ib-tag { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 1px 8px; border-radius: 6px; color: #fff; font-size: 12px; font-weight: 600; line-height: 1.55; white-space: nowrap; }
 .ib-tag--violet { background: #7e4fe0; } .ib-tag--blue { background: #2b7bf0; } .ib-tag--teal { background: #0f9c9c; } .ib-tag--green { background: #1fa971; }

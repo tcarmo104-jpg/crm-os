@@ -21,7 +21,7 @@ export function ChatHeader({
       <div className="ib-chat-id">
         <h2 className="ib-chat-name"><Link href={`/customers/${customerId}`} title="Abrir la ficha completa del cliente">{name}</Link></h2>
         <p className="ib-chat-sub">
-          <span>{CHANNEL_LABEL[channel]}</span><span aria-hidden="true">·</span><span>+{phone}</span>
+          <span>{CHANNEL_LABEL[channel]}</span>{phone ? <><span aria-hidden="true">·</span><span>{phone}</span></> : null}
           <span className={`ib-status ib-status--${status}`}>{status === 'open' ? (needsReply ? 'Pendiente' : 'Abierta') : 'Cerrada'}</span>
         </p>
       </div>

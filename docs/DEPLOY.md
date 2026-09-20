@@ -218,3 +218,15 @@ Sigue primero `docs/META-WHATSAPP.md` hasta dejar el canal conectado.
    - Haz clic en una tarjeta: se abre el panel lateral con su historial.
    - Escribe un nombre en el buscador: el tablero se filtra solo.
 
+
+## Actualizar a Conexiones: WhatsApp, Facebook, Instagram y Gmail (migraciones 0016 y 0017)
+
+1. Supabase → SQL Editor → **New query** → pega `supabase/setup-desde-0016.sql` (incluye la 0017) → **Run**. Debe terminar con una
+   fila `estado = LISTO`. (Si dice que ya está instalada la 0016 pero no la 0017, usa `setup-desde-0017.sql`.)
+2. Sube el código a GitHub (arrastra las carpetas del ZIP → Commit) y espera el deploy de Vercel.
+3. En Vercel agrega las variables **nuevas** (mira `docs/CONEXIONES.md` §1): `META_APP_ID`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+   y, si quieres, `CONNECTIONS_ENCRYPTION_KEY`. **Redeploy.**
+4. Entra a **Configuración → Conexiones**. Tus números de WhatsApp ya conectados aparecerán como **Pendiente**: pulsa **Verificar**.
+   (No se pierde ninguna conversación ni token; el envío sigue funcionando mientras tanto.)
+5. Conecta Facebook/Instagram y Gmail siguiendo `docs/CONEXIONES.md`.
+6. Para que Gmail se sincronice solo, la tarea programada de `/api/cron/dispatch-events` debe correr **cada minuto** (ver §5).

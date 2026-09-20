@@ -92,7 +92,7 @@ export function ConversationList({
         {!hasChannels ? (
           <div className="ib-empty">
             <p><strong>Aún no hay un canal de WhatsApp conectado.</strong></p>
-            {canManageChannels ? <Link className="ib-btn ib-btn--primary" href="/settings/channels">Conectar WhatsApp</Link> : <p className="ib-muted">Pide a un administrador que lo conecte en Configuración → Canales.</p>}
+            {canManageChannels ? <Link className="ib-btn ib-btn--primary" href="/settings/connections">Conectar WhatsApp</Link> : <p className="ib-muted">Pide a un administrador que lo conecte en Configuración → Conexiones.</p>}
           </div>
         ) : rows.length === 0 ? (
           <div className="ib-empty">
