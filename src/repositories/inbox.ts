@@ -1,18 +1,19 @@
 import type { ServerSupabase } from '@/lib/supabase/server';
 import { unwrap } from '@/lib/errors';
 import { decodeCursor, encodeCursor } from '@/lib/cursor';
-import type { ChannelRow, ConversationRow, MessageRow, Page, TemplateRow } from '@/lib/types';
+import type { ChannelRow, ConversationRow, MessageRow, Page, QuickReplyRow, TagColor, TagRow, TemplateRow } from '@/lib/types';
+import { dateFrom, safeSearchText, type InboxQuery } from '@/lib/inbox-view';
 
-const CONV = 'id, channel_id, customer_id, thread_key, contact_name, status, owner_id, last_message_at, last_inbound_at, last_message_preview, last_direction, needs_reply, unread';
+const CONV = 'id, channel_id, customer_id, thread_key, contact_name, status, owner_id, last_message_at, last_inbound_at, last_message_preview, last_direction, needs_reply, unread, unread_count';
 interface RawConv {
   id: string; channel_id: string; customer_id: string; thread_key: string; contact_name: string | null; status: 'open' | 'closed'; owner_id: string | null;
   last_message_at: string | null; last_inbound_at: string | null; last_message_preview: string | null; last_direction: 'inbound' | 'outbound' | null;
-  needs_reply: boolean; unread: boolean;
+  needs_reply: boolean; unread: boolean; unread_count: number;
 }
 const mapConv = (r: RawConv): ConversationRow => ({
   id: r.id, channelId: r.channel_id, customerId: r.customer_id, threadKey: r.thread_key, contactName: r.contact_name, status: r.status, ownerId: r.owner_id,
   lastMessageAt: r.last_message_at, lastInboundAt: r.last_inbound_at, lastMessagePreview: r.last_message_preview, lastDirection: r.last_direction,
-  needsReply: r.needs_reply, unread: r.unread,
+  needsReply: r.needs_reply, unread: r.unread, unreadCount: r.unread_count ?? 0,
 });
 
 export type InboxFilter = 'reply' | 'open' | 'unassigned' | 'closed';
@@ -44,10 +45,10 @@ export async function getConversation(db: ServerSupabase, id: string): Promise<C
 
 /** Los últimos `limit` mensajes, en orden cronológico. */
 export async function listMessages(db: ServerSupabase, conversationId: string, limit = 300): Promise<MessageRow[]> {
-  const rows = unwrap(await db.from('messages').select('id, direction, kind, body, status, error, error_code, sent_by, occurred_at')
+  const rows = unwrap(await db.from('messages').select('id, direction, kind, body, status, error, error_code, sent_by, occurred_at, meta')
     .eq('conversation_id', conversationId).order('occurred_at', { ascending: false }).order('created_at', { ascending: false }).limit(limit)) as unknown as
-    { id: string; direction: 'inbound' | 'outbound'; kind: MessageRow['kind']; body: string; status: MessageRow['status']; error: string | null; error_code: string | null; sent_by: string | null; occurred_at: string }[];
-  return rows.reverse().map((r) => ({ id: r.id, direction: r.direction, kind: r.kind, body: r.body, status: r.status, error: r.error, errorCode: r.error_code, sentBy: r.sent_by, occurredAt: r.occurred_at }));
+    { id: string; direction: 'inbound' | 'outbound'; kind: MessageRow['kind']; body: string; status: MessageRow['status']; error: string | null; error_code: string | null; sent_by: string | null; occurred_at: string; meta: Record<string, unknown> | null }[];
+  return rows.reverse().map((r) => ({ id: r.id, direction: r.direction, kind: r.kind, body: r.body, status: r.status, error: r.error, errorCode: r.error_code, sentBy: r.sent_by, occurredAt: r.occurred_at, meta: r.meta ?? {} }));
 }
 
 export async function getMessageOutcome(db: ServerSupabase, id: string): Promise<{ status: string; error: string | null } | null> {
@@ -91,3 +92,111 @@ export async function queueTemplate(db: ServerSupabase, conversationId: string, 
 }
 export async function markRead(db: ServerSupabase, id: string) { unwrap(await db.rpc('mark_conversation_read', { p_id: id })); }
 export async function setConversationStatus(db: ServerSupabase, id: string, status: 'open' | 'closed') { unwrap(await db.rpc('set_conversation_status', { p_id: id, p_status: status })); }
+
+// ---------------------------------------------------------------------------
+// Bandeja de tres paneles: búsqueda y filtros
+// ---------------------------------------------------------------------------
+const EMPTY_PAGE: Page<ConversationRow> = { items: [], nextCursor: null };
+
+/**
+ * Lista de conversaciones con la pestaña + filtros avanzados + búsqueda del Inbox.
+ * Todo pasa por RLS: cada persona solo obtiene lo que puede ver.
+ */
+export async function searchConversations(
+  db: ServerSupabase, p: { orgId: string; userId: string; query: InboxQuery; cursor?: string; limit?: number },
+): Promise<Page<ConversationRow>> {
+  const { query: f } = p;
+  const limit = Math.min(p.limit ?? 40, 100);
+  let q = db.from('conversations').select(CONV).eq('org_id', p.orgId);
+
+  switch (f.tab) {
+    case 'unread': q = q.eq('unread', true); break;
+    case 'pending': q = q.eq('needs_reply', true).eq('status', 'open'); break;
+    case 'mine': q = q.eq('owner_id', p.userId); break;
+    case 'unassigned': q = q.is('owner_id', null).eq('status', 'open'); break;
+    case 'closed': q = q.eq('status', 'closed'); break;
+    default: break;
+  }
+  if (f.estado) q = q.eq('status', f.estado);
+  if (f.asesor === 'none') q = q.is('owner_id', null);
+  else if (f.asesor) q = q.eq('owner_id', f.asesor);
+  const from = dateFrom(f.fecha);
+  if (from) q = q.gte('last_message_at', from);
+
+  if (f.canal) {
+    const ids = (await listChannels(db, p.orgId)).filter((c) => c.kind === f.canal).map((c) => c.id);
+    if (ids.length === 0) return EMPTY_PAGE;               // canal aún sin conectar: no hay nada que mostrar
+    q = q.in('channel_id', ids);
+  }
+  if (f.etiqueta) {
+    const rows = unwrap(await db.from('customer_tags').select('customer_id').eq('tag_id', f.etiqueta).limit(2000)) as unknown as { customer_id: string }[];
+    if (rows.length === 0) return EMPTY_PAGE;
+    q = q.in('customer_id', rows.map((r) => r.customer_id));
+  }
+  const text = safeSearchText(f.q);
+  if (text) {
+    const like = `*${text}*`;
+    const byName = unwrap(await db.from('customers').select('id').eq('org_id', p.orgId).ilike('full_name', like).limit(200)) as unknown as { id: string }[];
+    const parts = [`contact_name.ilike.${like}`, `last_message_preview.ilike.${like}`, `thread_key.ilike.${like}`];
+    if (byName.length > 0) parts.push(`customer_id.in.(${byName.map((r) => r.id).join(',')})`);
+    q = q.or(parts.join(','));
+  }
+
+  const cur = decodeCursor(p.cursor);
+  if (cur) q = q.or(`last_message_at.lt.${cur.ts},and(last_message_at.eq.${cur.ts},id.lt.${cur.id})`);
+  const rows = unwrap(await q.order('last_message_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(limit + 1)) as unknown as RawConv[];
+  const page = rows.slice(0, limit);
+  const last = page[page.length - 1];
+  return { items: page.map(mapConv), nextCursor: rows.length > limit && last?.last_message_at ? encodeCursor({ ts: last.last_message_at, id: last.id }) : null };
+}
+
+/** Números de las pestañas «No leídas», «Pendientes» y «Sin asignar» (solo recuento, sin traer filas). */
+export async function tabCounts(db: ServerSupabase, orgId: string): Promise<{ unread: number; pending: number; unassigned: number }> {
+  const head = () => db.from('conversations').select('id', { count: 'exact', head: true }).eq('org_id', orgId);
+  const [unread, pending, unassigned] = await Promise.all([
+    head().eq('unread', true),
+    head().eq('needs_reply', true).eq('status', 'open'),
+    head().is('owner_id', null).eq('status', 'open'),
+  ]);
+  for (const r of [unread, pending, unassigned]) if (r.error) throw new Error(r.error.message);
+  return { unread: unread.count ?? 0, pending: pending.count ?? 0, unassigned: unassigned.count ?? 0 };
+}
+
+// ---------------------------------------------------------------------------
+// Etiquetas y respuestas rápidas
+// ---------------------------------------------------------------------------
+export async function listTags(db: ServerSupabase, orgId: string): Promise<TagRow[]> {
+  const rows = unwrap(await db.from('tags').select('id, name, color').eq('org_id', orgId).order('name')) as unknown as { id: string; name: string; color: TagColor }[];
+  return rows.map((r) => ({ id: r.id, name: r.name, color: r.color }));
+}
+
+export async function tagsByCustomer(db: ServerSupabase, customerIds: string[]): Promise<Map<string, TagRow[]>> {
+  const out = new Map<string, TagRow[]>();
+  if (customerIds.length === 0) return out;
+  const rows = unwrap(await db.from('customer_tags').select('customer_id, tag:tags(id, name, color)').in('customer_id', customerIds)) as unknown as
+    { customer_id: string; tag: { id: string; name: string; color: TagColor } | null }[];
+  for (const r of rows) {
+    if (!r.tag) continue;
+    const list = out.get(r.customer_id) ?? [];
+    list.push({ id: r.tag.id, name: r.tag.name, color: r.tag.color });
+    out.set(r.customer_id, list);
+  }
+  for (const list of out.values()) list.sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  return out;
+}
+
+export async function addCustomerTag(db: ServerSupabase, customerId: string, name: string, color?: TagColor): Promise<string> {
+  return unwrap(await db.rpc('add_customer_tag', { p_customer: customerId, p_name: name, p_color: color ?? null })) as string;
+}
+export async function removeCustomerTag(db: ServerSupabase, customerId: string, tagId: string) {
+  unwrap(await db.rpc('remove_customer_tag', { p_customer: customerId, p_tag: tagId }));
+}
+
+export async function listQuickReplies(db: ServerSupabase, orgId: string): Promise<QuickReplyRow[]> {
+  const rows = unwrap(await db.from('quick_replies').select('id, title, body').eq('org_id', orgId).order('title')) as unknown as QuickReplyRow[];
+  return rows.map((r) => ({ id: r.id, title: r.title, body: r.body }));
+}
+export async function createQuickReply(db: ServerSupabase, orgId: string, title: string, body: string): Promise<string> {
+  return unwrap(await db.rpc('create_quick_reply', { p_org: orgId, p_title: title, p_body: body })) as string;
+}
+export async function deleteQuickReply(db: ServerSupabase, id: string) { unwrap(await db.rpc('delete_quick_reply', { p_id: id })); }

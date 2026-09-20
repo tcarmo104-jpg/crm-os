@@ -54,3 +54,45 @@ export async function createTemplate(db: ServerSupabase, orgId: string, input: u
   if (max > 10 || new Set(nums).size !== max) throw new UserFacingError('Los datos variables deben ser {{1}}, {{2}}, {{3}}… en orden y sin saltos, igual que en Meta.');
   await repo.createTemplate(db, orgId, d);
 }
+
+// ---------------------------------------------------------------------------
+// Tres paneles: notas internas, etiquetas, respuestas rápidas
+// ---------------------------------------------------------------------------
+import * as activities from '@/repositories/activities';
+
+const TAG_COLORS = ['violet', 'blue', 'teal', 'green', 'yellow', 'orange', 'red', 'pink', 'gray'] as const;
+
+/** Una nota interna NUNCA se envía al cliente: se guarda como actividad del cliente. */
+export async function sendNote(db: ServerSupabase, input: unknown): Promise<string> {
+  const d = parse(z.object({
+    customerId: z.string().uuid('Cliente no válido.'),
+    body: z.string().trim().min(1, 'Escribe la nota.').max(2000, 'La nota es demasiado larga (máximo 2000 caracteres).'),
+  }), input);
+  return activities.logActivity(db, { customerId: d.customerId, type: 'note', summary: d.body });
+}
+
+export async function addTag(db: ServerSupabase, input: unknown): Promise<string> {
+  const d = parse(z.object({
+    customerId: z.string().uuid('Cliente no válido.'),
+    name: z.string().trim().min(1, 'Escribe el nombre de la etiqueta.').max(40, 'La etiqueta es demasiado larga (máximo 40 caracteres).'),
+    color: z.preprocess(blank, z.enum(TAG_COLORS).optional()),
+  }), input);
+  return repo.addCustomerTag(db, d.customerId, d.name, d.color);
+}
+
+export async function removeTag(db: ServerSupabase, input: unknown) {
+  const d = parse(z.object({ customerId: z.string().uuid(), tagId: z.string().uuid() }), input);
+  await repo.removeCustomerTag(db, d.customerId, d.tagId);
+}
+
+export async function createQuickReply(db: ServerSupabase, orgId: string, input: unknown): Promise<string> {
+  const d = parse(z.object({
+    title: z.string().trim().min(1, 'Ponle un título corto.').max(60, 'El título es demasiado largo (máximo 60 caracteres).'),
+    body: z.string().trim().min(1, 'Escribe el texto de la respuesta.').max(1000, 'El texto es demasiado largo (máximo 1000 caracteres).'),
+  }), input);
+  return repo.createQuickReply(db, orgId, d.title, d.body);
+}
+
+export async function deleteQuickReply(db: ServerSupabase, id: unknown) {
+  await repo.deleteQuickReply(db, parse(z.string().uuid('Respuesta no válida.'), id));
+}

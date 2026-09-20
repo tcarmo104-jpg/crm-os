@@ -32,6 +32,10 @@ export const NAV_GROUPS: NavGroup[] = [
     key: 'comms', label: 'Comunicaciones',
     items: [
       { key: 'inbox', label: 'Inbox', icon: 'inbox', href: '/inbox' },
+      { key: 'whatsapp', label: 'WhatsApp', icon: 'chat', phase: 5 },
+      { key: 'instagram', label: 'Instagram', icon: 'chat', phase: 5 },
+      { key: 'facebook', label: 'Facebook', icon: 'chat', phase: 5 },
+      { key: 'email', label: 'Email', icon: 'mail', phase: 5 },
     ],
   },
   {
