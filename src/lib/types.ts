@@ -166,6 +166,7 @@ export interface OpportunityRow {
   id: string; customerId: string; pipelineId: string; stageId: string; title: string; amount: number; currency: string | null;
   expectedCloseDate: string | null; productInterest: string | null; status: OpportunityStatus; lostReason: string | null;
   closedAt: string | null; ownerId: string | null; customFields: Record<string, unknown>; createdAt: string;
+  number: string; priority: 'high' | 'medium' | 'low'; temperature: 'hot' | 'warm' | 'cold' | null; channel: string | null; conversationId: string | null;
 }
 
 export interface TransitionRow {
@@ -225,10 +226,14 @@ export interface TemplateRow { id: string; channelId: string; name: string; lang
 export interface ConversationRow {
   id: string; channelId: string; customerId: string; threadKey: string; contactName: string | null; status: 'open' | 'closed';
   ownerId: string | null; lastMessageAt: string | null; lastInboundAt: string | null; lastMessagePreview: string | null;
-  lastDirection: 'inbound' | 'outbound' | null; needsReply: boolean; unread: boolean;
+  lastDirection: 'inbound' | 'outbound' | null; needsReply: boolean; unread: boolean; unreadCount: number;
 }
 export type MessageStatus = 'received' | 'queued' | 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
 export interface MessageRow {
   id: string; direction: 'inbound' | 'outbound'; kind: 'text' | 'template' | 'media' | 'other'; body: string; status: MessageStatus;
-  error: string | null; errorCode: string | null; sentBy: string | null; occurredAt: string;
+  error: string | null; errorCode: string | null; sentBy: string | null; occurredAt: string; meta: Record<string, unknown>;
 }
+
+export type TagColor = 'violet' | 'blue' | 'teal' | 'green' | 'yellow' | 'orange' | 'red' | 'pink' | 'gray';
+export interface TagRow { id: string; name: string; color: TagColor }
+export interface QuickReplyRow { id: string; title: string; body: string }

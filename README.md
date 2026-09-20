@@ -17,6 +17,8 @@ Stack: Next.js 15 · TypeScript · Supabase (PostgreSQL, Auth) · Vercel.
 | 3 | Pipelines, oportunidades, tareas y actividades, log de transiciones, máquina de estados de leads | ✅ (falta validar en staging: ver `docs/DEPLOY.md`) |
 | 4 | Catálogo de productos y servicios, cotizaciones versionadas, ventas con foto inmutable, seguimiento postventa y casos | ✅ (falta validar en staging: ver `docs/DEPLOY.md`) |
 | 5 | Inbox y WhatsApp (API de Meta): conversaciones, plantillas, ventana de 24 h, «no contactar», entrega con estados | ✅ construido (falta probar con Meta real: ver `docs/META-WHATSAPP.md`) |
+| 5b | Inbox de tres paneles (lista · chat · ficha del cliente), etiquetas, notas internas, respuestas rápidas | ✅ construido y probado en navegador local (falta el Supabase real) |
+| 6a | Oportunidades: tablero Kanban con arrastrar y soltar, filtros, panel de detalle y vínculo con el Inbox | ✅ construido y probado en navegador local (falta el Supabase real) |
 | 6 | Motor de asignación, lead scoring, SLA | siguiente |
 
 ## Estructura

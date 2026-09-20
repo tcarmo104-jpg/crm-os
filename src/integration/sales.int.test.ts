@@ -82,12 +82,12 @@ describe('pipelines', () => {
     const list = await pipes.listPipelines(s1, org);
     expect(list).toHaveLength(1);
     expect(list[0]).toMatchObject({ name: 'Ventas', isDefault: true });
-    expect(orderedStages(stages).map((s) => s.name)).toEqual(['Nuevo', 'Contactado', 'Propuesta', 'Negociación', 'Ganada', 'Perdida']);
+    expect(orderedStages(stages).map((s) => s.name)).toEqual(['Nueva', 'Contactado', 'Calificada', 'Cotización', 'Negociación', 'Ganada', 'Perdida']);
   });
   it('solo quien tiene pipelines:manage crea pipelines y etapas (con mensajes claros)', async () => {
     expect((await rejects(pipes.createPipeline(s1, org, 'Mío'))).code).toBe('42501');
     const id = await sales.createPipeline(a, org, 'Renovaciones');
-    expect((await pipes.listPipelines(s1, org)).find((p) => p.id === id)?.stages).toHaveLength(6);
+    expect((await pipes.listPipelines(s1, org)).find((p) => p.id === id)?.stages).toHaveLength(7);
     await sales.addStage(a, org, { pipelineId: id, name: 'Demo', kind: 'open', probability: '35' });
     const err = await rejects(sales.addStage(a, org, { pipelineId: id, name: 'demo', kind: 'open', probability: '10' }));
     expect(toUserMessage(err)).toMatch(/ya existe/i);
@@ -100,28 +100,28 @@ describe('oportunidades y log de transiciones', () => {
     opp = await sales.createOpportunity(s1, { customerId: carlos, title: 'Plan A', amount: '$ 1.500.000', expectedClose: '2026-12-31', productInterest: 'Producto A' });
     const o = await oppsRepo.getOpportunity(s1, opp);
     expect(o).toMatchObject({ amount: 1500000, status: 'open', expectedCloseDate: '2026-12-31', currency: 'COP', ownerId: S1 });
-    expect(o?.stageId).toBe(stage('Nuevo'));
+    expect(o?.stageId).toBe(stage('Nueva'));
     expect(await oppsRepo.getOpportunity(s2, opp)).toBeNull();
     expect((await oppsRepo.listOpportunities(m, { orgId: org })).map((x) => x.id)).toContain(opp);
     expect((await rejects(sales.createOpportunity(s2, { customerId: carlos, title: 'X', amount: '1' }))).code).toBe('42501');
   });
 
   it('mover, perder (con motivo obligatorio y mensaje claro), y reabrir solo el manager', async () => {
-    await sales.moveOpportunity(s1, opp, { stageId: stage('Propuesta') });
+    await sales.moveOpportunity(s1, opp, { stageId: stage('Cotización') });
     const noReason = await rejects(sales.moveOpportunity(s1, opp, { stageId: stage('Perdida') }));
     expect(toUserMessage(noReason)).toMatch(/motivo/i);
     await sales.moveOpportunity(s1, opp, { stageId: stage('Perdida'), reason: 'Eligió a la competencia' });
     expect(await oppsRepo.getOpportunity(s1, opp)).toMatchObject({ status: 'lost', lostReason: 'Eligió a la competencia' });
 
-    const cant = await rejects(sales.moveOpportunity(s1, opp, { stageId: stage('Nuevo') }));
+    const cant = await rejects(sales.moveOpportunity(s1, opp, { stageId: stage('Nueva') }));
     expect(toUserMessage(cant)).toMatch(/manager o administrador/);
-    await sales.moveOpportunity(m, opp, { stageId: stage('Nuevo') });
+    await sales.moveOpportunity(m, opp, { stageId: stage('Nueva') });
     expect(await oppsRepo.getOpportunity(s1, opp)).toMatchObject({ status: 'open', lostReason: null, closedAt: null });
   });
 
   it('el historial se lee en orden y es una cadena continua; S2 no lo ve', async () => {
     const t = await oppsRepo.listTransitions(s1, 'opportunity', opp);   // más reciente primero
-    expect(t.map((x) => x.toState)).toEqual(['Nuevo', 'Perdida', 'Propuesta', 'Nuevo']);
+    expect(t.map((x) => x.toState)).toEqual(['Nueva', 'Perdida', 'Cotización', 'Nueva']);
     const chrono = [...t].reverse();
     chrono.forEach((x, i) => expect(x.fromState).toBe(i === 0 ? null : chrono[i - 1]!.toState));
     expect(t[1]).toMatchObject({ reason: 'Eligió a la competencia', source: 'user', actorId: S1 });

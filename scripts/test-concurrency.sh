@@ -115,4 +115,32 @@ seq 1 12 | xargs -P 12 -I{} bash -c "psql -X -q -tA -d \$DB -c \"select public.c
 [ "$(grep -c '^t$' /tmp/claims.txt)" = "1" ] || fail "escenario 10: más de un proceso reclamó el mismo mensaje ($(grep -c '^t$' /tmp/claims.txt))"
 [ "$(count "select attempts from messages where id = '$MSG'")" = "1" ] || fail "escenario 10: el mensaje tiene más de un intento"
 
+echo "→ Escenario 11: 12 personas agregan la MISMA etiqueta nueva al mismo cliente, a la vez"
+TC=$("${PSQL[@]}" <<SQL | tail -1
+select set_config('request.jwt.claim.sub', '$UID_', false) \gset
+select (public.create_customer('$ORG', 'person', 'Cliente Etiquetas', '[{"type":"phone","value":"+573009990011"}]'::jsonb) ->> 'customer_id');
+SQL
+)
+[ -n "$TC" ] || fail "no se pudo crear el cliente de la prueba de etiquetas"
+rm -f /tmp/tagfail.txt
+seq 1 12 | xargs -P 12 -I{} bash -c "psql -X -q -tA -d \$DB -c \"select set_config('request.jwt.claim.sub', '$UID_', false); select public.add_customer_tag('$TC', case when {} % 2 = 0 then 'Carrera' else '  CARRERA ' end)\" >/dev/null 2>&1 || echo F >> /tmp/tagfail.txt"
+[ ! -s /tmp/tagfail.txt ] || fail "escenario 11: $(wc -l < /tmp/tagfail.txt) de 12 solicitudes simultáneas FALLARON (todas deben tener éxito)"
+[ "$(count "select count(*) from tags where lower(name) = 'carrera'")" = "1" ] || fail "escenario 11: se duplicó la etiqueta"
+[ "$(count "select count(*) from customer_tags where customer_id = '$TC'")" = "1" ] || fail "escenario 11: el cliente quedó con vínculos duplicados o ninguno"
+
+echo "→ Escenario 12: 30 oportunidades creadas a la vez (numeración OPP correlativa: sin repetidos ni huecos)"
+CO=$("${PSQL[@]}" <<SQL | tail -1
+select set_config('request.jwt.claim.sub', '$UID_', false) \gset
+select (public.create_customer('$ORG', 'person', 'Cliente Oportunidades', '[{"type":"phone","value":"+573009990012"}]'::jsonb) ->> 'customer_id');
+SQL
+)
+[ -n "$CO" ] || fail "no se pudo crear el cliente de la prueba de oportunidades"
+BEFORE=$(count "select count(*) from opportunities where org_id = '$ORG'")
+rm -f /tmp/oppfail.txt
+seq 1 30 | xargs -P 30 -I{} bash -c "psql -X -q -tA -d \$DB -c \"select set_config('request.jwt.claim.sub', '$UID_', false); select public.create_opportunity('$CO', 'Carrera {}', 100, null, null, null)\" >/dev/null 2>&1 || echo F >> /tmp/oppfail.txt"
+[ ! -s /tmp/oppfail.txt ] || fail "escenario 12: $(wc -l < /tmp/oppfail.txt) de 30 creaciones simultáneas FALLARON"
+[ "$(count "select count(*) from opportunities where org_id = '$ORG'")" = "$((BEFORE + 30))" ] || fail "escenario 12: faltan oportunidades"
+[ "$(count "select count(distinct number) from opportunities where org_id = '$ORG'")" = "$(count "select count(*) from opportunities where org_id = '$ORG'")" ] || fail "escenario 12: números repetidos"
+[ "$(count "select max(substr(number, 5)::int) - count(*) from opportunities where org_id = '$ORG'")" = "0" ] || fail "escenario 12: huecos en la numeración"
+
 echo "✔ CONCURRENCIA OK: sin duplicados, sin errores, sin deadlocks, historial y numeración íntegros"

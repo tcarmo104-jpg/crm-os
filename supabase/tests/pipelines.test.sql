@@ -27,15 +27,15 @@ select t.as_user(:B); select t.save('orgB', public.create_organization('Beta', '
 select t.ok('cada organización nueva nace con UN pipeline por defecto',
   (select count(*) = 1 and bool_and(is_default) from public.pipelines where org_id = t.id('orgA')));
 select t.save('pipe', (select id from public.pipelines where org_id = t.id('orgA')));
-select t.ok('con 4 etapas abiertas, una ganada (100 %) y una perdida (0 %)',
-  (select count(*) filter (where kind = 'open') = 4 and count(*) filter (where kind = 'won' and probability = 100) = 1
+select t.ok('con 5 etapas abiertas (Nueva, Contactado, Calificada, Cotización, Negociación), una ganada (100 %) y una perdida (0 %)',
+  (select count(*) filter (where kind = 'open') = 5 and count(*) filter (where kind = 'won' and probability = 100) = 1
       and count(*) filter (where kind = 'lost' and probability = 0) = 1
      from public.pipeline_stages where pipeline_id = t.id('pipe')));
 select app.seed_default_pipeline(t.id('orgA'));
 select t.ok('el seed es idempotente (no duplica)', (select count(*) from public.pipelines where org_id = t.id('orgA')) = 1);
 
 select t.as_user(:S1);
-select t.ok('un vendedor ve los pipelines de su organización', (select count(*) from public.pipelines) = 1 and (select count(*) from public.pipeline_stages) = 6);
+select t.ok('un vendedor ve los pipelines de su organización', (select count(*) from public.pipelines) = 1 and (select count(*) from public.pipeline_stages) = 7);
 select t.reset();
 select t.as_user(:B);
 select t.ok('otra organización solo ve los suyos', (select count(*) from public.pipelines) = 1 and (select id from public.pipelines) <> t.id('pipe'));
@@ -54,8 +54,8 @@ select t.reset();
 
 select t.as_user(:A);
 select t.save('pipe2', public.create_pipeline(t.id('orgA'), 'Postventa'));
-select t.ok('un admin crea un pipeline y nace con sus 6 etapas',
-  (select count(*) from public.pipeline_stages where pipeline_id = t.id('pipe2')) = 6
+select t.ok('un admin crea un pipeline y nace con sus 7 etapas',
+  (select count(*) from public.pipeline_stages where pipeline_id = t.id('pipe2')) = 7
   and (select not is_default from public.pipelines where id = t.id('pipe2')));
 select t.throws('el nombre es único sin importar mayúsculas', format('select public.create_pipeline(%L, ''  postVENTA '')', t.id('orgA')), '23505');
 select t.throws('nombre vacío', format('select public.create_pipeline(%L, ''  '')', t.id('orgA')), '22023');
@@ -67,7 +67,7 @@ select t.reset();
 select t.as_user(:A);
 insert into public.pipeline_stages (org_id, pipeline_id, name, kind, probability) values (t.id('orgA'), t.id('pipe'), 'Demo', 'open', 60);
 select t.ok('la posición de una etapa nueva se asigna al final de su tipo (de 10 en 10)',
-  (select position = 50 from public.pipeline_stages where pipeline_id = t.id('pipe') and name = 'Demo'));
+  (select position = 60 from public.pipeline_stages where pipeline_id = t.id('pipe') and name = 'Demo'));
 select t.throws('nombre de etapa repetido en el mismo pipeline',
   format('insert into public.pipeline_stages (org_id, pipeline_id, name, kind, probability) values (%L, %L, ''demo'', ''open'', 5)', t.id('orgA'), t.id('pipe')), '23505');
 select t.throws('una etapa abierta no puede valer 100 %',
@@ -124,8 +124,8 @@ select t.reset();
 -- ---------------------------------------------------------------------------
 select t.as_user(:A);
 insert into public.pipeline_stages (org_id, pipeline_id, name, kind, probability)
-  select t.id('orgA'), t.id('pipe3'), 'Extra ' || g, 'open', 5 from generate_series(1, 19) g;
-select t.ok('hasta 25 etapas activas por pipeline (6 + 19)',
+  select t.id('orgA'), t.id('pipe3'), 'Extra ' || g, 'open', 5 from generate_series(1, 18) g;
+select t.ok('hasta 25 etapas activas por pipeline (7 + 18)',
   (select count(*) from public.pipeline_stages where pipeline_id = t.id('pipe3') and archived_at is null) = 25);
 select t.throws('la etapa 26 se rechaza',
   format('insert into public.pipeline_stages (org_id, pipeline_id, name, kind, probability) values (%L, %L, ''Una más'', ''open'', 5)', t.id('orgA'), t.id('pipe3')), '53400');

@@ -174,7 +174,7 @@ Supabase real**. Antes de confiar en la Fase 2, recorre esto y avísame de cualq
 1. **Base de datos primero.** En Supabase → *SQL Editor → New query*:
    - Si tu proyecto **ya tiene 0001 a 0012** (la Fase 4 instalada): pega `supabase/setup-desde-0013.sql`.
    - Si **todavía no instalaste la Fase 4** (tienes 0001 a 0010): pega `supabase/setup-desde-0011.sql`, que ya incluye la Fase 4 y la 5.
-   Debe terminar con una fila: `LISTO | 35 tablas | 35 con RLS | 56 permisos | 9 roles_base`.
+   Debe terminar con una fila: `LISTO | 38 tablas | 38 con RLS | 56 permisos | 9 roles_base`.
    El archivo se niega a ejecutarse si ya está instalado o si falta la Fase 4; no toca nada en esos casos.
 2. **Código después.** Sube a GitHub los archivos nuevos y modificados (paquete `crm-os-fase5-actualizacion.zip`, respetando las carpetas). Vercel vuelve a desplegar solo.
 3. **Variables nuevas en Vercel** (*Settings → Environment Variables*, marcadas como **Sensitive**, sin `NEXT_PUBLIC_`): `META_APP_SECRET` y `META_VERIFY_TOKEN`. Ver `docs/META-WHATSAPP.md` para obtenerlas. Después de agregarlas hay que **volver a desplegar**.
@@ -191,3 +191,30 @@ Sigue primero `docs/META-WHATSAPP.md` hasta dejar el canal conectado.
 5. **Baja:** desde el celular escribe exactamente `STOP`. El cliente debe quedar «No contactar» y ya no ofrecer plantillas; responder seguirá permitido mientras la ventana esté abierta.
 6. **Permisos:** con un vendedor, verifica que solo ve las conversaciones de sus clientes. Reasigna el cliente a otro vendedor: la conversación se va con él.
 7. **Fallos a propósito:** pausa el canal en *Configuración → Canales* y comprueba que no deja enviar pero sí sigue recibiendo.
+
+## Actualizar al Inbox de tres paneles (migración 0014)
+
+1. **Base de datos primero.** En Supabase → *SQL Editor → New query*, pega `supabase/setup-desde-0014.sql` (si ya tienes la Fase 5 instalada, es decir, la tabla `raw_events`). Debe terminar con `LISTO | 38 | 38 | 56 | 9`. Si ya estaba instalada o falta la Fase 5, el archivo se niega a ejecutarse y no toca nada.
+   - Si **no** tienes la Fase 5 (ni la 4), pega en su lugar `setup-desde-0011.sql`, que incluye todo hasta la 0014.
+2. **Código después.** Sube a GitHub el paquete de actualización (carpetas `src`, `docs`, `supabase`, `scripts` y los archivos sueltos que traiga) y espera el despliegue de Vercel.
+3. **Sin variables nuevas.** El Inbox usa las mismas de la Fase 5.
+4. **Comprobar (5 minutos):**
+   - **Inbox** muestra tres columnas en un computador: lista, chat y ficha del cliente.
+   - El botón pequeño en el borde entre el chat y la ficha **cierra y abre** la ficha; el chat se ensancha sin recargar.
+   - En **Nota interna** escribe algo y guárdalo: aparece en amarillo y **no llega al WhatsApp del cliente**.
+   - En la ficha, **+ Añadir etiqueta** crea una etiqueta y aparece también en la lista.
+   - En el celular, el Inbox muestra una sola pantalla a la vez, con flechas para volver.
+
+## Actualizar a Oportunidades con tablero Kanban (migración 0015)
+
+1. **Base de datos primero.** En Supabase → *SQL Editor → New query*, pega `supabase/setup-desde-0015.sql` (si ya instalaste el Inbox de tres paneles) → Run. Debe terminar con `LISTO | 38 | 38 | 56 | 9`. Si ya estaba instalado o falta la migración 0014, el archivo se niega a ejecutarse y no toca nada.
+   - Si **no** has instalado el Inbox de tres paneles, pega en su lugar `setup-desde-0014.sql`, que incluye la 0014 y la 0015.
+   - Esto **cambia los nombres de las etapas** del pipeline si aún tiene las originales (Nuevo→Nueva, Propuesta→Cotización, y añade Calificada). Tus oportunidades no se pierden ni cambian de etapa. Si personalizaste el pipeline, no se toca.
+2. **Código después.** Sube a GitHub el paquete (carpetas `src`, `docs`, `supabase`, `scripts` y los archivos sueltos que traiga) y espera el despliegue de Vercel. Esta vez trae una dependencia nueva (`@dnd-kit/core`): Vercel la instala sola.
+3. **Comprobar (5 minutos):**
+   - **Oportunidades** muestra 7 columnas y los 4 indicadores arriba.
+   - Arrastra una tarjeta a otra columna: se mueve al instante y, al recargar, sigue ahí.
+   - Al arrastrar, abajo aparecen las zonas «Ganada» y «Perdida»; «Perdida» pide un motivo.
+   - Haz clic en una tarjeta: se abre el panel lateral con su historial.
+   - Escribe un nombre en el buscador: el tablero se filtra solo.
+

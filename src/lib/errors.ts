@@ -85,6 +85,7 @@ export function toUserMessage(err: unknown): string {
   if (msg.includes('due date out of range') || msg.includes('date out of range')) return 'La fecha está fuera del rango permitido.';
   if (msg.includes('opportunity belongs to another customer')) return 'Esa oportunidad pertenece a otro cliente.';
 
+  if (msg.includes('conversation_customer_mismatch')) return 'Esa conversación pertenece a otro cliente: solo se puede vincular una conversación del mismo cliente.';
   // Bandeja (WhatsApp)
   if (msg.includes('window_closed')) return 'Pasaron más de 24 horas desde el último mensaje del cliente. WhatsApp solo permite enviar una plantilla aprobada.';
   if (msg.includes('do_not_contact')) return 'Este cliente pidió no ser contactado. Solo puedes responderle dentro de las 24 h posteriores a su último mensaje, y sin plantillas.';
@@ -94,6 +95,11 @@ export function toUserMessage(err: unknown): string {
   if (msg.includes('template_unavailable')) return 'Esa plantilla no está disponible (desactivada o de otro canal).';
   if (msg.includes('template_params')) return 'Completa todos los datos de la plantilla.';
   if (msg.includes('template_placeholders')) return 'Los datos variables deben ser {{1}}, {{2}}… en orden y sin saltos.';
+
+  if (msg.includes('tag_name')) return 'El nombre de la etiqueta debe tener entre 1 y 40 caracteres.';
+  if (msg.includes('tag_color')) return 'Ese color de etiqueta no existe.';
+  if (msg.includes('quick_replies_title_uk')) return 'Ya existe una respuesta rápida con ese título.';
+  if (msg.includes('tags_name_uk')) return 'Esa etiqueta ya existe.';
 
   // Catálogo, cotizaciones, ventas y casos
   if (msg.includes('quote_locked')) return 'Esa cotización ya fue enviada y no se puede modificar. Crea una nueva versión.';

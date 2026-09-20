@@ -3,16 +3,18 @@ import { unwrap } from '@/lib/errors';
 import type { OpportunityRow, OpportunityStatus, TransitionRow } from '@/lib/types';
 
 const COLUMNS =
-  'id, customer_id, pipeline_id, stage_id, title, amount, currency, expected_close_date, product_interest, status, lost_reason, closed_at, owner_id, custom_fields, created_at';
+  'id, customer_id, pipeline_id, stage_id, title, amount, currency, expected_close_date, product_interest, status, lost_reason, closed_at, owner_id, custom_fields, created_at, number, priority, temperature, channel, conversation_id';
 interface Raw {
   id: string; customer_id: string; pipeline_id: string; stage_id: string; title: string; amount: number | string; currency: string | null;
   expected_close_date: string | null; product_interest: string | null; status: OpportunityStatus; lost_reason: string | null;
   closed_at: string | null; owner_id: string | null; custom_fields: Record<string, unknown>; created_at: string;
+  number: string; priority: OpportunityRow['priority']; temperature: OpportunityRow['temperature']; channel: string | null; conversation_id: string | null;
 }
 const map = (r: Raw): OpportunityRow => ({
   id: r.id, customerId: r.customer_id, pipelineId: r.pipeline_id, stageId: r.stage_id, title: r.title,
   amount: Number(r.amount), currency: r.currency, expectedCloseDate: r.expected_close_date, productInterest: r.product_interest,
   status: r.status, lostReason: r.lost_reason, closedAt: r.closed_at, ownerId: r.owner_id, customFields: r.custom_fields ?? {}, createdAt: r.created_at,
+  number: r.number, priority: r.priority, temperature: r.temperature, channel: r.channel, conversationId: r.conversation_id,
 });
 
 export async function listOpportunities(

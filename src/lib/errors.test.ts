@@ -58,6 +58,7 @@ describe('unwrap', () => {
     const e = (message: string, code?: string) => toUserMessage(new DbError({ message, code }));
     expect(e('discount_requires_approval', '42501')).toMatch(/manager/);
     expect(e('quote_locked', '23514')).toMatch(/nueva versión/);
+    expect(e('conversation_customer_mismatch', '23514')).toMatch(/otro cliente/);
     expect(e('window_closed', '23514')).toMatch(/24 horas/);
     expect(e('do_not_contact', '23514')).toMatch(/no ser contactado/);
     expect(e('channel_paused', '23514')).toMatch(/en pausa/);

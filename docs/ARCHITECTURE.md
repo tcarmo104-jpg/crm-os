@@ -326,3 +326,84 @@ Implementada en la migración `0004` y fijada por pruebas (una prueba falla si o
 5. Instagram/Messenger y correo; clasificación de intención (Fase 9); asignación automática y SLA de respuesta (Fase 6); respuestas rápidas y notas internas en la conversación.
 6. El token se guarda en la base de datos protegido por permisos (nadie con sesión lo lee) y por el cifrado en reposo de Supabase; no hay cifrado adicional a nivel de aplicación ni *vault*.
 
+## 18. Inbox de tres paneles
+
+**Regla de trabajo:** el rediseño se hace **módulo por módulo**. Este módulo (Inbox) tiene su propio estilo aislado en `src/app/(app)/inbox/inbox.css` (todo bajo `.ib` / `.ib-*`); el resto de la aplicación —menú lateral incluido— no cambió. Referencia de organización: la bandeja «Chats con clientes» de Simla.com (lista · chat · ficha).
+
+**Estructura** (`src/app/(app)/inbox/page.tsx` + `src/components/inbox/`)
+- **Panel 1 · Conversaciones:** búsqueda (nombre, teléfono o texto del mensaje), pestañas *Todas / No leídas / Pendientes / Mías / Sin asignar / Cerradas* (con contadores) y filtros avanzados (canal, asesor, etiqueta, fecha, estado). Cada fila: avatar con insignia del canal, último mensaje, hora, etiquetas, asesor y contador de no leídos.
+- **Panel 2 · Chat:** encabezado (avatar, canal, estado, asesor asignable, cerrar/reabrir), hilo cronológico por día que mezcla **mensajes del cliente**, **del asesor**, **automáticos** (salientes sin autor humano), **notas internas** y **eventos del sistema**; enlaces detectados solo si son `http(s)`; adjuntos como tarjeta con su tipo.
+- **Compositor:** pestañas «Mensaje al cliente» / «Nota interna» con diferencia visual inequívoca (fondo amarillo, candado, botón ámbar y aviso «No se envía al cliente»), emojis, respuestas rápidas, plantillas y Ctrl+Enter. Una **nota interna se guarda como actividad del cliente y nunca como mensaje saliente**.
+- **Panel 3 · Ficha del cliente:** datos de contacto, **etiquetas** (añadir/quitar), **pedidos**, notas, tareas, productos comprados y datos clave; secciones plegables. Solo lecturas con la sesión de la persona (RLS).
+- **Ficha colapsable:** un botón en el borde entre el chat y la ficha. Solo cambia un atributo del contenedor: **no recarga, no pierde el borrador ni la posición del chat**, y el chat ocupa el ancho liberado (se recuerda en una cookie; solo afecta a la ficha, nunca a la lista ni al menú).
+- **Responsive:** ≥1200 px tres paneles; 860–1199 px lista + chat con la ficha como panel lateral; <860 px una sección a la vez (Lista → Chat → Cliente) con botones de regreso.
+- **Sin recargas:** el estado vive en la URL (`/inbox?c=…&f=…&q=…`). Seleccionar una conversación es navegación suave; las acciones (enviar, nota, etiqueta, asignar…) refrescan los datos **en su sitio**, sin redirección (una versión inicial redirigía y la pantalla parpadeaba en blanco: se corrigió y se comprobó en el navegador). El enlace antiguo `/inbox/<id>` redirige a la vista nueva.
+
+**Datos nuevos (migración 0014)**
+- `tags` + `customer_tags`: etiqueta única por organización sin distinguir mayúsculas; crear y etiquetar es idempotente y seguro con concurrencia; exige poder editar al cliente; las etiquetas se unen sin chocar al fusionar clientes.
+- `quick_replies`: catálogo compartido de la organización (crear: quien puede responder; borrar: su autor o un administrador).
+- `conversations.unread_count`: suma con cada mensaje entrante (los reintentos duplicados de Meta no suman) y vuelve a 0 al responder, leer o cerrar; nunca negativo.
+
+**Decisiones**
+- Reasignar un cliente sigue exigiendo alcance de organización (regla existente); el selector de asesor solo se muestra a quien puede.
+- Solo hay canal de **WhatsApp**. Instagram y Messenger ya tienen insignia y filtro (aparecen «sin conectar»), pero no se inventa ninguna conversación.
+- Las etiquetas se crean al escribirlas (con color automático); gestionarlas (renombrar, recolorear, borrar) queda para Configuración.
+
+**Verificado**
+- **SQL:** pruebas de la 0014 (permisos por rol, RLS, duplicados, fusión, contador de no leídos) + escenario de concurrencia nuevo (12 creaciones simultáneas de la misma etiqueta, **todas deben tener éxito**).
+- **Unitarias:** 203 en total (estado de la URL, hilo, enlaces, formato de hora determinista, agregación de productos…).
+- **Integración contra PostgREST real:** 90 en total; las 19 nuevas cubren pestañas, filtros combinados, búsqueda (incluido un intento de inyección en el filtro), paginación por cursor, visibilidad por rol, etiquetas, notas y respuestas rápidas.
+- **Mutaciones:** **26 defectos inyectados** (16 en la migración, 5 unitarios y 5 de integración) —contador que no suma o no reinicia, etiquetas sin control de acceso, carrera al crear etiquetas, fusión que choca, RLS abierta, filtros que no filtran, nota guardada como otro tipo…—. **Los 26 detectados.**
+- **Navegador real** (Chromium contra la versión compilada de producción, con datos sembrados): ~25 comprobaciones —tres paneles, colapsar sin recargar ni perder el borrador ni el punto de lectura, sincronía al cambiar de conversación, nota que nunca sale como mensaje, filtros, tablet y móvil— más revisión visual de capturas en claro y oscuro.
+- **Defectos hallados en esa revisión y corregidos:** parpadeo en blanco por redirección tras cada acción; nombre del cliente recortado en el encabezado con la ficha abierta o en móvil; pestañas cortadas; formato de fecha que dependía del idioma del navegador.
+
+**NO verificado / pendiente**
+- Nada se probó con Meta real ni con el Supabase real (solo base de datos y navegador locales).
+- **Adjuntos:** los mensajes con imagen/audio/documento se muestran como tarjeta («Vista previa no disponible todavía»); los botones de adjuntar están desactivados. Descargar/enviar archivos exige la API de medios de Meta y almacenamiento.
+- Instagram, Messenger y correo; tiempo real (hoy se refresca cada 12 s); arrastrar conversaciones; atajos de teclado; gestión de etiquetas y respuestas rápidas en Configuración.
+- Accesibilidad: hay roles ARIA, foco visible y etiquetas, pero no se auditó con lector de pantalla.
+- El menú lateral conserva las entradas antiguas «WhatsApp / Instagram / Facebook / Email — Fase 5» (no se tocó a propósito); se limpiará cuando toque el módulo del menú.
+
+## 19. Oportunidades · tablero Kanban
+
+**Regla de trabajo:** solo se tocó el módulo Oportunidades. Su estilo vive aislado en `src/app/(app)/opportunities/kanban.css` (todo bajo `.kb-*`); el menú lateral y los demás módulos no cambiaron (salvo un texto de ayuda en Configuración → Pipelines, que listaba las etapas antiguas).
+
+**Qué había antes y qué se reutilizó.** Ya existían las tablas `opportunities`, `pipelines` y `pipeline_stages` (Ganada y Perdida ya eran *etapas* de tipo `won`/`lost`), el RPC `move_opportunity` (que registra quién, cuándo, de qué etapa a cuál y el motivo en `state_transitions`), cotizaciones, actividades, tareas y la ficha completa `/opportunities/[id]` (sigue funcionando; el panel lateral enlaza a ella). El asesor de una oportunidad es siempre el del cliente. El flujo de creación (`/opportunities/new`) se conserva tal cual.
+
+**Datos nuevos (migración 0015)**
+- `opportunities.number` (OPP-0001…): correlativo por organización, sin repetidos ni huecos aunque se creen 30 a la vez, inmutable (ni con permisos de escritura de columna ni por trigger).
+- `priority` (alta/media/baja, por defecto media) y `temperature` (fría/tibia/caliente, opcional): independientes de la etapa; los cambia solo quien puede editar la oportunidad.
+- `channel` (whatsapp, instagram, facebook, email, phone, web, referral, other) y `conversation_id`: al crearla se enlaza sola a la conversación más reciente del cliente y hereda su canal. Solo se puede vincular una conversación **del mismo cliente** (`link_opportunity_conversation`); `conversation_id` no se escribe directamente.
+- Etapas por defecto: **Nueva · Contactado · Calificada · Cotización · Negociación · Ganada · Perdida**. Un pipeline existente se actualiza únicamente si conserva *exactamente* las etapas originales sin tocar (Nuevo→Nueva, Propuesta→Cotización, se añade Calificada); uno personalizado no se toca. Las oportunidades conservan su etapa equivalente y su historial.
+
+**Pantalla** (`src/app/(app)/opportunities/page.tsx`, `src/components/kanban/`)
+- Cabecera: título, «+ Nueva oportunidad», buscador en vivo, selector Tablero/Lista, filtros rápidos (Asesor, Canal, Prioridad, Temperatura) y «Más filtros» (Equipo, Producto, Etapa, Fecha de creación, Cierre estimado, Región, Valor mínimo/máximo). Los filtros viven en la URL, se combinan y se aplican sin recargar la página; los activos se ven como chips.
+- Indicadores: valor total del pipeline (solo abiertas), abiertas, ganadas y perdidas de los últimos 30 días.
+- Tablero: una columna por etapa con nombre, cantidad, valor total y menú (ordenar por recientes, valor, cierre o prioridad; «Ver solo esta etapa»). Tarjeta compacta: cliente, prioridad (3 barritas), título, producto, valor, fecha de cierre (roja si venció), temperatura, canal y asesor.
+- **Arrastrar y soltar** (`@dnd-kit`, con mouse y pantalla táctil): la tarjeta cambia de columna al instante y se guarda en segundo plano; si el servidor lo rechaza, **vuelve a su columna** y se explica por qué. Soltar en *Perdida* pide el motivo (obligatorio, mínimo 3 letras); en *Ganada*, confirmación; reabrir una cerrada solo lo permite quien tiene alcance de organización (se avisa antes de guardar). Mientras se arrastra aparecen dos **zonas fijas «Ganada» y «Perdida»** al pie, porque con 7 columnas el destino puede quedar fuera de pantalla.
+- Panel lateral (`?o=<id>`): se abre sin salir del tablero (Escape, la X o clic fuera lo cierran). Datos (con prioridad, temperatura y canal editables), cliente, productos (de la cotización vigente o el interés declarado), cotizaciones, actividades (se pueden registrar) e historial en lenguaje natural («Yeison movió la oportunidad de Cotización a Negociación.»). «Ver conversación» abre el Inbox en la conversación vinculada. También permite cambiar de etapa con una lista (alternativa accesible al arrastre).
+- Responsive: escritorio y tablet con desplazamiento horizontal; móvil una columna a la vez (≈88 % del ancho), navegación por etapas y filtros en una fila deslizable.
+
+**Decisiones**
+- **«Región»** filtra por la ciudad del cliente. **No existe «Sede»** en el sistema y no se inventó.
+- Arrastrar a **Ganada solo cierra la oportunidad**: no registra la venta (eso sigue naciendo de una cotización aceptada). El cuadro de confirmación lo avisa.
+- Ganada/Perdida muestran los últimos 30 días (salvo al filtrar por esa etapa). Abiertas: hasta 500 (se avisa si hay más).
+- La búsqueda por dígitos en teléfonos solo se aplica cuando lo escrito parece un teléfono (así «OPP-0003» no coincide con 3001110003).
+
+**Verificado**
+- **SQL:** pruebas de la 0015 (numeración, inmutabilidad, prioridad/temperatura/canal con permisos, vínculo de conversación, etapas por defecto y actualización conservadora) + escenario de concurrencia (30 oportunidades a la vez). Se actualizaron 5 pruebas antiguas que asumían las etapas viejas.
+- **Unitarias:** 232 en total (filtros de URL, columnas y totales, movimientos y reglas al soltar, historial, servicios, iniciales del avatar).
+- **Integración contra PostgREST real:** 111 en total; las 21 nuevas cubren filtros individuales y combinados, búsqueda (nombre, teléfono, correo, número, producto, texto de cotización, intento de inyección), ventana de 30 días, visibilidad por rol, movimientos con historial y reglas de reapertura, vínculo de conversación.
+- **Mutaciones:** 29 defectos inyectados (16 SQL, 9 unitarios, 4 de integración); **28 detectados**. El restante (quitar `authenticated` de un `revoke`) es un seguro redundante: sin él, los usuarios ya no tienen ese permiso.
+- **Instaladores:** verificados desde 5 estados de partida y con una actualización sobre datos reales (organización con etapas antiguas, oportunidades y conversación: se renombran las etapas, se numeran, se vinculan las conversaciones y el historial previo queda intacto).
+- **Navegador real** (Chromium contra la versión compilada de producción): 57 comprobaciones, incluidos arrastres con el mouse, cuadros de motivo y confirmación, cancelar, fallo de red simulado, bloqueo de reapertura, panel lateral, búsqueda en vivo, filtros combinados, vista lista, tablet, móvil y tema oscuro.
+- **Defectos hallados y corregidos en esta revisión:** no se podía llegar a «Perdida» arrastrando (zonas fijas), la búsqueda por número coincidía con teléfonos, avatares e iconos de canal sin estilo (dependían del Inbox), aro de foco grueso en el panel, filtros que ocupaban media pantalla en móvil.
+
+**NO verificado / pendiente**
+- Nada se probó con el Supabase real de producción ni en un celular físico (solo Chromium emulando pantalla táctil).
+- Arrastrar con teclado: no se implementó; la alternativa accesible es «Cambiar de etapa» en el panel.
+- Crear la oportunidad sigue en su pantalla propia (no en un panel del tablero) y no pide prioridad/temperatura/canal al crear: se ajustan luego en el panel.
+- Vincular manualmente una conversación distinta desde la pantalla (existe el RPC y la acción, falta el selector).
+- Orden manual dentro de una columna, edición de valor/fecha desde el panel y acciones masivas.
+- Accesibilidad: hay roles ARIA, foco visible y etiquetas, pero no se auditó con lector de pantalla.
+

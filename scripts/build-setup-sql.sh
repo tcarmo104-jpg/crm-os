@@ -8,7 +8,7 @@ FROM="${1:-1}"
 if [ "$FROM" = "1" ]; then OUT=supabase/setup-all.sql; else OUT="supabase/setup-desde-$(printf %04d "$FROM").sql"; fi
 
 # Primera tabla que crea cada migración: si ya existe, esa migración ya está instalada.
-sentinel() { case "$1" in 6) echo custom_field_definitions;; 7) echo customers;; 8) echo api_keys;; 9) echo pipelines;; 10) echo tasks;; 11) echo products;; 12) echo sales;; 13) echo channels;; *) echo "";; esac; }
+sentinel() { case "$1" in 6) echo custom_field_definitions;; 7) echo customers;; 8) echo api_keys;; 9) echo pipelines;; 10) echo tasks;; 11) echo products;; 12) echo sales;; 13) echo channels;; 14) echo tags;; *) echo "";; esac; }
 
 {
   echo "-- ============================================================================="
@@ -40,9 +40,22 @@ sentinel() { case "$1" in 6) echo custom_field_definitions;; 7) echo customers;;
       echo "    raise exception 'FALTAN las migraciones de la Fase 3 (0009 y 0010). Avísame para darte el archivo correcto.';"
       echo "  end if;"
     fi
-    if [ "$FROM" -ge 13 ]; then
+    if [ "$FROM" -ge 15 ]; then
+      echo "  if to_regclass('public.tags') is null then"
+      echo "    raise exception 'FALTA la migración 0014 (Inbox de tres paneles). Instala primero setup-desde-0014.sql o avísame.';"
+      echo "  end if;"
+    elif [ "$FROM" -ge 14 ]; then
+      echo "  if to_regclass('public.conversations') is null then"
+      echo "    raise exception 'FALTA la migración 0013 (Inbox de WhatsApp). Instala primero setup-desde-0013.sql o avísame.';"
+      echo "  end if;"
+    elif [ "$FROM" -ge 13 ]; then
       echo "  if to_regclass('public.sales') is null then"
       echo "    raise exception 'FALTAN las migraciones de la Fase 4 (0011 y 0012). Instala primero setup-desde-0011.sql o avísame.';"
+      echo "  end if;"
+    fi
+    if [ "$FROM" = "15" ]; then
+      echo "  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'opportunities' and column_name = 'number') then"
+      echo "    raise exception 'Este proyecto YA tiene instalada la migración 0015 (existe la columna number en opportunities). No ejecutes este archivo: avísame.';"
       echo "  end if;"
     fi
     if [ -n "$S" ]; then

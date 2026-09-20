@@ -34,8 +34,8 @@ select t.reset();
 select t.as_user(:B); select t.save('orgB', public.create_organization('Beta', 'beta')); select t.reset();
 
 select t.save('pipe', (select id from public.pipelines where org_id = t.id('orgA') and is_default));
-select t.save('st_nuevo', (select id from public.pipeline_stages where pipeline_id = t.id('pipe') and name = 'Nuevo'));
-select t.save('st_prop',  (select id from public.pipeline_stages where pipeline_id = t.id('pipe') and name = 'Propuesta'));
+select t.save('st_nuevo', (select id from public.pipeline_stages where pipeline_id = t.id('pipe') and name = 'Nueva'));
+select t.save('st_prop',  (select id from public.pipeline_stages where pipeline_id = t.id('pipe') and name = 'Cotización'));
 select t.save('st_won',   (select id from public.pipeline_stages where pipeline_id = t.id('pipe') and kind = 'won'));
 select t.save('st_lost',  (select id from public.pipeline_stages where pipeline_id = t.id('pipe') and kind = 'lost'));
 
@@ -86,14 +86,14 @@ select t.reset();
 -- Log de transiciones
 -- ---------------------------------------------------------------------------
 select t.ok('la creación queda registrada (desde nada hasta la etapa inicial, con quién y por qué vía)',
-  (select count(*) = 1 and bool_and(from_state is null and to_state = 'Nuevo' and actor_id = :S1 and source = 'user')
+  (select count(*) = 1 and bool_and(from_state is null and to_state = 'Nueva' and actor_id = :S1 and source = 'user')
      from public.state_transitions where entity_type = 'opportunity' and entity_id = t.id('opp1')));
 
 select t.as_user(:S1);
 select public.move_opportunity(t.id('opp1'), t.id('st_prop'));
 select t.reset();
 select t.ok('mover a otra etapa abierta se registra con el tipo de etapa',
-  (select from_state = 'Nuevo' and to_state = 'Propuesta' and meta ->> 'to_kind' = 'open' and meta ->> 'from_kind' = 'open'
+  (select from_state = 'Nueva' and to_state = 'Cotización' and meta ->> 'to_kind' = 'open' and meta ->> 'from_kind' = 'open'
      from public.state_transitions where entity_id = t.id('opp1') order by occurred_at desc, id desc limit 1));
 select t.ok('la oportunidad sigue abierta', (select status = 'open' and stage_id = t.id('st_prop') from public.opportunities where id = t.id('opp1')));
 
@@ -109,7 +109,7 @@ select t.reset();
 select t.as_user(:A);
 select t.save('pipe2', public.create_pipeline(t.id('orgA'), 'Otro'));
 insert into public.pipeline_stages (org_id, pipeline_id, name, kind, probability) values (t.id('orgA'), t.id('pipe'), 'Vieja', 'open', 5);
-select t.save('st_other', (select id from public.pipeline_stages where pipeline_id = t.id('pipe2') and name = 'Nuevo'));
+select t.save('st_other', (select id from public.pipeline_stages where pipeline_id = t.id('pipe2') and name = 'Nueva'));
 select t.save('st_vieja', (select id from public.pipeline_stages where name = 'Vieja'));
 update public.pipeline_stages set archived_at = now() where id = t.id('st_vieja');
 select t.reset();

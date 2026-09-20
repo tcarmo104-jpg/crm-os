@@ -137,7 +137,7 @@ export function NewPipelineForm() {
         <Field label="Nombre del pipeline" name="name" maxLength={80} placeholder="Renovaciones" />
         <SubmitButton pendingLabel="Creando…">Crear pipeline</SubmitButton>
       </div>
-      <p className="hint">Nace con las etapas habituales (Nuevo, Contactado, Propuesta, Negociación, Ganada, Perdida) que puedes ajustar.</p>
+      <p className="hint">Nace con las etapas habituales (Nueva, Contactado, Calificada, Cotización, Negociación, Ganada, Perdida) que puedes ajustar.</p>
     </form>
   );
 }

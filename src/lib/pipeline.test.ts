@@ -7,6 +7,7 @@ const st = (id: string, kind: StageRow['kind'], position: number, probability: n
 const op = (id: string, stageId: string, amount: number, status: OpportunityRow['status'] = 'open'): OpportunityRow => ({
   id, customerId: 'c', pipelineId: 'p', stageId, title: id, amount, currency: 'COP', expectedCloseDate: null, productInterest: null,
   status, lostReason: null, closedAt: null, ownerId: null, customFields: {}, createdAt: '2026-01-01T00:00:00Z',
+  number: 'OPP-0001', priority: 'medium', temperature: null, channel: null, conversationId: null,
 });
 
 describe('forecast', () => {
