@@ -2,9 +2,11 @@ import 'server-only';
 import type { createAdminClient } from './supabase-admin';
 import { classifyGoogleError, classifyMetaError, redact } from '@/lib/connections';
 import { SecretError, openSecret } from '@/lib/secrets';
+import { isAutoLabel } from '@/lib/media';
 import { sendGmailReply } from './gmail';
-import { sendSocial } from './meta-social';
-import { sendWhatsApp, type SendResult } from './whatsapp';
+import { createSupabaseMediaStore, type MediaStore } from './media';
+import { sendSocial, sendSocialAttachment } from './meta-social';
+import { sendWhatsApp, sendWhatsAppMedia, type SendResult } from './whatsapp';
 
 type Admin = ReturnType<typeof createAdminClient>;
 export type DeliverOutcome = 'sent' | 'failed' | 'unknown' | 'skipped';
@@ -12,7 +14,8 @@ export type DeliverOutcome = 'sent' | 'failed' | 'unknown' | 'skipped';
 interface Claimed {
   channel_kind?: 'whatsapp' | 'facebook' | 'instagram' | 'gmail'; account_id?: string; channel_meta?: Record<string, unknown> | null;
   reply_meta?: { message_id?: string | null; subject?: string | null; references?: string | null; gmail_thread_id?: string | null } | null;
-  message_id: string; kind: 'text' | 'template'; body: string; to: string; phone_number_id: string; channel_id: string;
+  attachments?: { id: string; kind: string; mime_type: string | null; file_name: string | null; storage_path: string }[];
+  message_id: string; kind: 'text' | 'template' | 'media'; body: string; to: string; phone_number_id: string; channel_id: string;
   template_name: string | null; template_language: string | null; template_params: string[] | null;
 }
 
@@ -20,7 +23,7 @@ interface Claimed {
  * Entrega un mensaje ya encolado. «Como máximo una vez»: el reclamo en la base de datos es atómico, y si el
  * resultado es desconocido NO se reintenta (el barrido lo marcará «falló: verifica en WhatsApp»).
  */
-export interface DeliverDeps { social?: typeof sendSocial; email?: typeof sendGmailReply; env?: NodeJS.ProcessEnv }
+export interface DeliverDeps { social?: typeof sendSocial; email?: typeof sendGmailReply; env?: NodeJS.ProcessEnv; store?: MediaStore; fetchImpl?: typeof fetch }
 
 export async function deliverMessage(admin: Admin, messageId: string, send: (i: Parameters<typeof sendWhatsApp>[0]) => Promise<SendResult> = sendWhatsApp, deps: DeliverDeps = {}): Promise<DeliverOutcome> {
   const claim = await admin.rpc('claim_outbound', { p_message: messageId });
@@ -44,16 +47,38 @@ export async function deliverMessage(admin: Admin, messageId: string, send: (i: 
   const kind = c.channel_kind ?? 'whatsapp';
   const env = deps.env ?? process.env;
   let r: SendResult;
-  if (kind === 'facebook' || kind === 'instagram') {
-    r = await (deps.social ?? sendSocial)({ token, to: c.to, body: c.body });
+  if (c.kind === 'media') {
+    // ---- mensaje con archivo(s): se leen del almacén privado y se envían por la API de cada canal ----
+    const store = deps.store ?? createSupabaseMediaStore(admin);
+    const files: { fileName: string; mime: string; bytes: Uint8Array; kind: string }[] = [];
+    for (const a of c.attachments ?? []) {
+      const bytes = await store.get(a.storage_path);
+      if (!bytes) return finishFail('attachment_missing', 'El archivo ya no está disponible en el servidor. Vuelve a adjuntarlo.');
+      files.push({ fileName: a.file_name ?? 'archivo', mime: a.mime_type ?? 'application/octet-stream', bytes, kind: a.kind });
+    }
+    if (files.length === 0) return finishFail('attachment_missing', 'El mensaje no tiene archivos para enviar.');
+    const caption = isAutoLabel(c.body) ? null : c.body;
+    if (kind === 'whatsapp') {
+      const f = files[0]!;
+      r = await sendWhatsAppMedia({ phoneNumberId: c.phone_number_id, token, to: c.to, type: f.kind === 'image' || f.kind === 'video' || f.kind === 'audio' ? f.kind : 'document', bytes: f.bytes, mime: f.mime, fileName: f.fileName, caption, fetchImpl: deps.fetchImpl });
+    } else if (kind === 'facebook' || kind === 'instagram') {
+      const f = files[0]!;
+      r = await sendSocialAttachment({ token, to: c.to, type: f.kind === 'image' || f.kind === 'video' || f.kind === 'audio' ? f.kind : 'file', bytes: f.bytes, mime: f.mime, fileName: f.fileName, fetchImpl: deps.fetchImpl });
+    } else {
+      const clientId = (env.GOOGLE_CLIENT_ID ?? '').trim(), clientSecret = (env.GOOGLE_CLIENT_SECRET ?? '').trim();
+      if (!clientId || !clientSecret) return finishFail('not_configured', 'Faltan las credenciales de Google en el servidor. Avisa a un administrador.');
+      r = await (deps.email ?? sendGmailReply)({ refreshToken: token, app: { clientId, clientSecret }, from: c.account_id ?? '', to: c.to, body: caption ?? '(archivo adjunto)', replyMeta: c.reply_meta ?? {}, attachments: files.map((f) => ({ fileName: f.fileName, mime: f.mime, bytes: f.bytes })), fetchImpl: deps.fetchImpl });
+    }
+  } else if (kind === 'facebook' || kind === 'instagram') {
+    r = await (deps.social ?? sendSocial)({ token, to: c.to, body: c.body, fetchImpl: deps.fetchImpl });
   } else if (kind === 'gmail') {
     const clientId = (env.GOOGLE_CLIENT_ID ?? '').trim(), clientSecret = (env.GOOGLE_CLIENT_SECRET ?? '').trim();
     if (!clientId || !clientSecret) return finishFail('not_configured', 'Faltan las credenciales de Google en el servidor. Avisa a un administrador.');
-    r = await (deps.email ?? sendGmailReply)({ refreshToken: token, app: { clientId, clientSecret }, from: c.account_id ?? '', to: c.to, body: c.body, replyMeta: c.reply_meta ?? {} });
+    r = await (deps.email ?? sendGmailReply)({ refreshToken: token, app: { clientId, clientSecret }, from: c.account_id ?? '', to: c.to, body: c.body, replyMeta: c.reply_meta ?? {}, fetchImpl: deps.fetchImpl });
   } else {
     r = await send({
       phoneNumberId: c.phone_number_id, token, to: c.to, kind: c.kind, body: c.body,
-      templateName: c.template_name ?? undefined, templateLanguage: c.template_language ?? undefined, templateParams: c.template_params ?? [],
+      templateName: c.template_name ?? undefined, templateLanguage: c.template_language ?? undefined, templateParams: c.template_params ?? [], fetchImpl: deps.fetchImpl,
     });
   }
   const accountId = c.account_id ?? c.phone_number_id;

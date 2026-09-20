@@ -255,3 +255,35 @@ export interface AttachmentInput {
   kind: MediaKind; mime_type?: string | null; file_name?: string | null; file_size?: number | null; is_voice?: boolean;
   source?: Record<string, unknown>; meta?: Record<string, unknown>;
 }
+
+// ---------------------------------------------------------------------------------------------- selector de archivos y texto que acompaña
+const EXT_BY_MIME: Record<string, string> = { 'image/jpeg': '.jpg,.jpeg', 'image/png': '.png', 'image/gif': '.gif', 'image/webp': '.webp', 'image/heic': '.heic', 'video/mp4': '.mp4', 'video/quicktime': '.mov',
+  'video/webm': '.webm', 'video/3gpp': '.3gp', 'video/ogg': '.ogv', 'video/x-msvideo': '.avi', 'audio/aac': '.aac', 'audio/amr': '.amr', 'audio/mpeg': '.mp3', 'audio/mp4': '.m4a', 'audio/x-m4a': '.m4a',
+  'audio/ogg': '.ogg,.opus', 'audio/wav': '.wav', 'audio/webm': '.weba', 'application/pdf': '.pdf', 'application/msword': '.doc', 'application/vnd.ms-excel': '.xls', 'application/vnd.ms-powerpoint': '.ppt',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx', 'text/plain': '.txt', 'text/csv': '.csv', 'application/zip': '.zip', 'application/rtf': '.rtf' };
+
+/** Valor del atributo `accept` del selector: solo lo que ese canal admite (así el agente ni ve lo que no puede enviar). */
+export function acceptFor(channel: ChannelKey, only?: MediaKind): string {
+  const groups = SEND_RULES[channel].groups.filter((g) => !only || g.kind === only);
+  return [...new Set(groups.flatMap((g) => g.mimes.flatMap((m) => [m, ...(EXT_BY_MIME[m]?.split(',') ?? [])])))].join(',');
+}
+
+/**
+ * ¿El texto viaja en el MISMO mensaje que el archivo? WhatsApp lo permite en imagen, video y documento (pie de foto de hasta 1024
+ * caracteres) pero no en audio; Messenger e Instagram no mezclan texto y archivo (se envía aparte); Gmail lo lleva como cuerpo del correo.
+ */
+export function captionMode(channel: ChannelKey, kind: MediaKind): { inline: boolean; max: number } {
+  if (channel === 'gmail') return { inline: true, max: 4096 };
+  if (channel === 'whatsapp' && kind !== 'audio') return { inline: true, max: 1024 };
+  return { inline: false, max: 4096 };
+}
+
+const AUTO_LABEL = /^\[(Imagen|Video|Audio|Documento(: .*)?|\d+ adjuntos)\]$/;
+/** Las etiquetas automáticas («[Imagen]»…) no son un pie de foto real. */
+export const isAutoLabel = (body: string | null | undefined) => AUTO_LABEL.test((body ?? '').trim());
+export const MAX_UPLOAD_BYTES = 100 * MB;
+
+const MIME_BY_EXT: Record<string, string> = Object.fromEntries(Object.entries(EXT_BY_MIME).flatMap(([mime, exts]) => exts.split(',').map((e) => [e.slice(1), mime])));
+/** Algunos navegadores no informan el tipo de un archivo (cadena vacía): se deduce de la extensión (luego el servidor lo verifica por contenido). */
+export const mimeFromName = (name: string | null | undefined): string => MIME_BY_EXT[extOf(name)] ?? '';

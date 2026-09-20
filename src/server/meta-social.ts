@@ -80,3 +80,21 @@ export async function sendSocial(i: SocialSend): Promise<SendResult> {
   if (r.kind === 'transient') return { ok: false, definitive: false, message: 'No se pudo confirmar el envío (sin respuesta de Meta).' };
   return { ok: false, definitive: true, code: r.code, subcode: r.subcode ?? null, message: describeSocialError(r.code, r.subcode, r.detail) };
 }
+
+export interface SocialAttachmentSend { token: string; to: string; type: 'image' | 'video' | 'audio' | 'file'; bytes: Uint8Array; mime: string; fileName: string; fetchImpl?: typeof fetch; timeoutMs?: number }
+/**
+ * Envía un archivo a un contacto de Messenger/Instagram subiéndolo en la misma petición (multipart, «filedata»). Meta no admite
+ * texto y archivo en un mismo mensaje: el texto se envía aparte. Un rechazo definitivo NO salió; red/5xx = desconocido (no se reenvía).
+ */
+export async function sendSocialAttachment(i: SocialAttachmentSend): Promise<SendResult> {
+  if (!ID.test(i.to)) return { ok: false, definitive: true, code: 'bad_recipient', message: 'El contacto no tiene un identificador válido.' };
+  const form = new FormData();
+  form.append('recipient', JSON.stringify({ id: i.to }));
+  form.append('messaging_type', 'RESPONSE');
+  form.append('message', JSON.stringify({ attachment: { type: i.type, payload: { is_reusable: false } } }));
+  form.append('filedata', new Blob([i.bytes as BlobPart], { type: i.mime }), i.fileName);
+  const r = await graphCall<{ message_id?: string }>('POST', 'me/messages', i.token, { fetchImpl: i.fetchImpl, timeoutMs: i.timeoutMs ?? 60_000, multipart: form });
+  if (r.ok) return typeof r.data.message_id === 'string' && r.data.message_id ? { ok: true, externalId: r.data.message_id } : { ok: false, definitive: false, message: 'Respuesta inesperada de Meta.' };
+  if (r.kind === 'transient') return { ok: false, definitive: false, message: 'No se pudo confirmar el envío (sin respuesta de Meta).' };
+  return { ok: false, definitive: true, code: r.code, subcode: r.subcode ?? null, message: describeSocialError(r.code, r.subcode, r.detail) };
+}

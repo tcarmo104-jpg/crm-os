@@ -88,6 +88,10 @@ export function toUserMessage(err: unknown): string {
   if (msg.includes('conversation_customer_mismatch')) return 'Esa conversación pertenece a otro cliente: solo se puede vincular una conversación del mismo cliente.';
   // Bandeja (WhatsApp)
   if (msg.includes('window_closed')) return 'Pasaron más de 24 horas desde el último mensaje del cliente. En WhatsApp solo puedes enviar una plantilla aprobada; en Messenger, Instagram y Gmail debes esperar a que vuelva a escribir.';
+  if (msg.includes('attachment_count')) return 'Este canal solo permite enviar un archivo por mensaje (Gmail admite hasta 10).';
+  if (msg.includes('attachments_too_large')) return 'Los archivos juntos superan el máximo permitido para Gmail (25 MB).';
+  if (msg.includes('attachment_invalid')) return 'La subida del archivo venció o no es válida. Vuelve a adjuntarlo.';
+  if (msg.includes('too_many_uploads')) return 'Tienes demasiados archivos pendientes de enviar. Envía o cancela algunos primero.';
   if (msg.includes('channel_taken')) return 'Esa cuenta ya está conectada en otra organización.';
   if (msg.includes('do_not_contact')) return 'Este cliente pidió no ser contactado. Solo puedes responderle dentro de las 24 h posteriores a su último mensaje, y sin plantillas.';
   if (msg.includes('connection_unavailable')) return 'Este número de WhatsApp está desconectado y no puede enviar mensajes. Reconéctalo en Configuración → Conexiones.';

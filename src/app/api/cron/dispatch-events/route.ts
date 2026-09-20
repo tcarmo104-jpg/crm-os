@@ -6,7 +6,7 @@ import { createAdminClient } from '@/server/supabase-admin';
 import { sweepWebhooks } from '@/server/inbound';
 import { sweepOutbound } from '@/server/outbound';
 import { sweepConnections, sweepGmail } from '@/server/connections';
-import { createSupabaseMediaStore, expireStoredAttachments, sweepAttachments } from '@/server/media';
+import { createSupabaseMediaStore, expireStoredAttachments, purgeStaleUploads, sweepAttachments } from '@/server/media';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -29,7 +29,7 @@ async function run(request: Request) {
     try { inbox.outbound = await sweepOutbound(admin); } catch (e) { console.error(JSON.stringify({ msg: 'sweep_outbound_failed', error: e instanceof Error ? e.message : String(e) })); }
     try { inbox.connections = await sweepConnections(admin); } catch (e) { console.error(JSON.stringify({ msg: 'sweep_connections_failed', error: e instanceof Error ? e.message : String(e) })); }
     try { inbox.gmail = await sweepGmail(admin); } catch (e) { console.error(JSON.stringify({ msg: 'sweep_gmail_failed', error: e instanceof Error ? e.message : String(e) })); }
-    try { const store = createSupabaseMediaStore(admin); inbox.attachments = { ...(await sweepAttachments(admin, { store }, 5)), expired: await expireStoredAttachments(admin, store) }; } catch (e) { console.error(JSON.stringify({ msg: 'sweep_attachments_failed', error: e instanceof Error ? e.message : String(e) })); }
+    try { const store = createSupabaseMediaStore(admin); inbox.attachments = { ...(await sweepAttachments(admin, { store }, 5)), expired: await expireStoredAttachments(admin, store), staleUploads: await purgeStaleUploads(admin, store) }; } catch (e) { console.error(JSON.stringify({ msg: 'sweep_attachments_failed', error: e instanceof Error ? e.message : String(e) })); }
     return Response.json({ ok: true, ...summary, inbox });
   } catch (e) {
     console.error(JSON.stringify({ msg: 'dispatch_failed', error: e instanceof Error ? e.message : String(e) }));

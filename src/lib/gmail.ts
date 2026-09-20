@@ -113,3 +113,30 @@ export function buildRawEmail(o: { from: string; to: string; subject: string; bo
   const body = Buffer.from(o.body, 'utf8').toString('base64').replace(/(.{76})/g, '$1\r\n');
   return Buffer.from(`${head.join('\r\n')}\r\n\r\n${body}`, 'utf8').toString('base64url');
 }
+
+// ---------------------------------------------------------------------------------------------- correo con adjuntos
+export interface MailAttachment { fileName: string; mime: string; bytes: Uint8Array }
+const folded = (b: Uint8Array) => Buffer.from(b).toString('base64').replace(/(.{76})/g, '$1\r\n');
+const asciiName = (n: string) => n.replace(/[^\x20-\x7e]/g, '_').replace(/["\\\r\n]/g, '_').slice(0, 120) || 'archivo';
+
+/**
+ * Correo RFC 822 completo como bytes: texto plano UTF-8 y, si hay archivos, multipart/mixed con cada adjunto en base64.
+ * Los nombres con acentos van también en formato RFC 2231 (filename*). Bloquea la inyección de cabeceras y direcciones inválidas.
+ */
+export function buildMimeMessage(o: { from: string; fromName?: string | null; to: string; subject: string; body: string; inReplyTo?: string | null; references?: string | null; attachments?: MailAttachment[]; boundary?: string }): Uint8Array {
+  const addr = /^[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+$/;
+  if (!addr.test(o.to) || !addr.test(o.from)) throw new Error('invalid_address');
+  const atts = o.attachments ?? [];
+  const boundary = o.boundary ?? `crm_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+  const fromHdr = o.fromName ? `${encWord(safeHeader(o.fromName))} <${o.from}>` : o.from;
+  const refs = [o.references, o.inReplyTo].filter(Boolean).map((x) => safeHeader(x as string)).join(' ').trim();
+  const head = [`From: ${fromHdr}`, `To: ${o.to}`, `Subject: ${encWord(safeHeader(o.subject))}`, ...(o.inReplyTo ? [`In-Reply-To: ${safeHeader(o.inReplyTo)}`] : []), ...(refs ? [`References: ${refs}`] : []), 'MIME-Version: 1.0'];
+  const text = `Content-Type: text/plain; charset="UTF-8"\r\nContent-Transfer-Encoding: base64\r\n\r\n${folded(new TextEncoder().encode(o.body))}`;
+  if (atts.length === 0) return new TextEncoder().encode(`${head.join('\r\n')}\r\n${text}`);
+  const parts = atts.map((a) => {
+    const plain = asciiName(a.fileName);
+    const mime = /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i.test(a.mime) ? a.mime : 'application/octet-stream';
+    return `--${boundary}\r\nContent-Type: ${mime}; name="${plain}"\r\nContent-Disposition: attachment; filename="${plain}"; filename*=UTF-8''${encodeURIComponent(a.fileName).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)}\r\nContent-Transfer-Encoding: base64\r\n\r\n${folded(a.bytes)}\r\n`;
+  });
+  return new TextEncoder().encode(`${head.join('\r\n')}\r\nContent-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n--${boundary}\r\n${text}\r\n${parts.join('')}--${boundary}--\r\n`);
+}

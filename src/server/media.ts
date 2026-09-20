@@ -2,7 +2,9 @@ import 'server-only';
 import { createHash } from 'node:crypto';
 import { SecretError, openSecret } from '@/lib/secrets';
 import { redact } from '@/lib/connections';
-import { MAX_STORE_BYTES, extOf, imageSize, isAllowedMetaUrl, resolveMime, sanitizeFileName, type AttachmentInput, type MediaKind } from '@/lib/media';
+import { MAX_STORE_BYTES, captionMode, extOf, imageSize, isAllowedMetaUrl, resolveMime, sanitizeFileName, validateBatch, validateOutgoing, type AttachmentInput, type ChannelKey, type MediaKind } from '@/lib/media';
+import { UserFacingError, unwrap } from '@/lib/errors';
+import * as inboxRepo from '@/repositories/inbox';
 import type { ServerSupabase } from '@/lib/supabase/server';
 import { getGmailAttachment, refreshGoogleToken } from './gmail';
 import type { createAdminClient } from './supabase-admin';
@@ -16,6 +18,11 @@ export interface MediaStore {
   put(path: string, bytes: Uint8Array, mime: string): Promise<void>;
   signedUrl(path: string, ttlSeconds: number, downloadName?: string): Promise<string | null>;
   remove(paths: string[]): Promise<void>;
+  /** Tamaño real y primeros bytes de un archivo (para verificarlo por contenido sin bajarlo entero). null si no existe. */
+  head(path: string): Promise<{ size: number; head: Uint8Array } | null>;
+  get(path: string): Promise<Uint8Array | null>;
+  /** Enlace firmado para que el NAVEGADOR suba un archivo directo al bucket (Vercel no admite cuerpos de más de 4,5 MB). */
+  signedUploadUrl(path: string): Promise<{ token: string; path: string } | null>;
 }
 /** Supabase Storage con la llave del SERVIDOR: el bucket es privado y el navegador nunca lo toca directamente. */
 export function createSupabaseMediaStore(admin: Admin, bucket = MEDIA_BUCKET): MediaStore {
@@ -29,6 +36,23 @@ export function createSupabaseMediaStore(admin: Admin, bucket = MEDIA_BUCKET): M
       return r.data?.signedUrl ?? null;
     },
     async remove(paths) { if (paths.length > 0) await admin.storage.from(bucket).remove(paths); },
+    async head(path) {
+      const url = await this.signedUrl(path, 60);
+      if (!url) return null;
+      const res = await fetch(url, { headers: { Range: 'bytes=0-4095' } });
+      if (!res.ok) return null;
+      const total = Number((res.headers.get('content-range') ?? '').split('/')[1] ?? res.headers.get('content-length'));
+      const buf = new Uint8Array(await res.arrayBuffer());
+      return { size: Number.isFinite(total) && total > 0 ? total : buf.length, head: buf.slice(0, 4096) };
+    },
+    async get(path) {
+      const r = await admin.storage.from(bucket).download(path);
+      return r.error || !r.data ? null : new Uint8Array(await r.data.arrayBuffer());
+    },
+    async signedUploadUrl(path) {
+      const r = await admin.storage.from(bucket).createSignedUploadUrl(path);
+      return r.error || !r.data ? null : { token: r.data.token, path: r.data.path };
+    },
   };
 }
 
@@ -227,4 +251,90 @@ export async function mediaAccessUrl(db: ServerSupabase, store: MediaStore, id: 
   if (a.status !== 'stored' || !a.storage_path) return { ok: false, reason: 'unavailable' };
   const url = await store.signedUrl(a.storage_path, o.ttlSeconds ?? 120, o.download ? sanitizeFileName(a.file_name, `archivo${extOf(a.file_name) ? `.${extOf(a.file_name)}` : ''}`) : undefined);
   return url ? { ok: true, url } : { ok: false, reason: 'unavailable' };
+}
+
+
+// ---------------------------------------------------------------------------------------------- ENVIAR archivos desde el Inbox
+async function channelOf(db: ServerSupabase, conversationId: string): Promise<ChannelKey> {
+  if (!UUID.test(conversationId)) throw new UserFacingError('Conversación no válida.');
+  const c = await db.from('conversations').select('channel_id').eq('id', conversationId).maybeSingle();
+  const cid = (c.data as { channel_id: string } | null)?.channel_id;
+  if (!cid) throw new UserFacingError('No encontramos esa conversación.');
+  const ch = await db.from('channels').select('kind').eq('id', cid).maybeSingle();
+  const kind = (ch.data as { kind: ChannelKey } | null)?.kind;
+  if (!kind) throw new UserFacingError('No encontramos el canal de esta conversación.');
+  return kind;
+}
+
+export type PrepareResult = { ok: true; uploadId: string; path: string; token: string } | { ok: false; code: string; message: string };
+
+/**
+ * Paso 1: se valida lo que se puede saber SIN el contenido (nombre, tipo, tamaño, reglas del canal), se reserva el lugar y se entrega
+ * un enlace firmado para que el navegador suba el archivo directo al bucket privado.
+ */
+export async function prepareUpload(db: ServerSupabase, store: MediaStore, i: { conversationId: string; fileName: string; mime: string; size: number }): Promise<PrepareResult> {
+  const channel = await channelOf(db, i.conversationId);
+  const name = sanitizeFileName(i.fileName);
+  const check = validateOutgoing({ channel, fileName: name, mime: i.mime, size: i.size });
+  if (!check.ok) return { ok: false, code: check.code, message: check.message };
+  const row = unwrap(await db.rpc('create_attachment_upload', { p_conversation: i.conversationId, p_file_name: name, p_mime: check.mime, p_size: i.size })) as unknown as { id: string; path: string };
+  const up = await store.signedUploadUrl(row.path);
+  if (!up) return { ok: false, code: 'storage_unavailable', message: 'No se pudo preparar la subida del archivo. Inténtalo de nuevo.' };
+  return { ok: true, uploadId: row.id, path: row.path, token: up.token };
+}
+
+/** Cancelar una subida propia y borrar lo que ya se hubiera subido. */
+export async function cancelUpload(db: ServerSupabase, store: MediaStore, uploadId: string): Promise<void> {
+  if (!UUID.test(uploadId)) return;
+  const r = (await db.rpc('cancel_attachment_upload', { p_id: uploadId })) as { data: string | null };
+  if (typeof r.data === 'string') await store.remove([r.data]).catch(() => undefined);
+}
+
+/**
+ * Paso 2 (al pulsar «Enviar»): el SERVIDOR verifica cada archivo por su CONTENIDO (tipo real, tamaño exacto, peligro, reglas del canal),
+ * lo marca verificado y encola el mensaje con las mismas reglas que el texto. Cualquier falla borra las subidas y explica qué pasó.
+ * Devuelve los mensajes a entregar EN ORDEN (el archivo primero; el texto aparte solo donde el canal no permite mezclarlos).
+ */
+export async function sendAttachments(db: ServerSupabase, admin: Admin, store: MediaStore, o: { userId: string; conversationId: string; uploadIds: string[]; caption?: string | null }): Promise<string[]> {
+  const channel = await channelOf(db, o.conversationId);
+  const ids = [...new Set(o.uploadIds)];
+  const abort = async (message: string): Promise<never> => { for (const id of ids) await cancelUpload(db, store, id).catch(() => undefined); throw new UserFacingError(message); };
+  if (ids.length === 0) throw new UserFacingError('Adjunta al menos un archivo.');
+  const kinds: MediaKind[] = []; const sizes: number[] = [];
+  for (const id of ids) {
+    const g = await admin.rpc('get_attachment_upload', { p_id: id, p_user: o.userId, p_conversation: o.conversationId });
+    const row = g.data as { file_name: string; mime_type: string; file_size: number; storage_path: string } | null;
+    if (g.error || !row) return abort('La subida del archivo venció o no es válida. Vuelve a adjuntarlo.');
+    const head = await store.head(row.storage_path);
+    if (!head) return abort('El archivo no llegó completo al servidor. Vuelve a adjuntarlo.');
+    if (head.size !== row.file_size) return abort('El archivo no se subió completo. Vuelve a adjuntarlo.');
+    const check = validateOutgoing({ channel, fileName: row.file_name, mime: row.mime_type, size: head.size, head: head.head });
+    if (!check.ok) return abort(check.message);
+    const dims = check.kind === 'image' ? imageSize(head.head) : null;
+    await admin.rpc('verify_attachment_upload', { p_id: id, p_kind: check.kind, p_mime: check.mime, p_size: head.size, p_width: dims?.width ?? null, p_height: dims?.height ?? null });
+    kinds.push(check.kind); sizes.push(head.size);
+  }
+  const batch = validateBatch(channel, sizes);
+  if (!batch.ok) return abort(batch.message);
+  const text = (o.caption ?? '').trim() || null;
+  const mode = captionMode(channel, kinds[0] ?? 'file');
+  if (text && mode.inline && text.length > mode.max) return abort(`El texto que acompaña al archivo es demasiado largo (máximo ${mode.max} caracteres en ${channel === 'whatsapp' ? 'WhatsApp' : 'este canal'}).`);
+  const out: string[] = [];
+  try {
+    out.push(unwrap(await db.rpc('queue_media_message', { p_conversation: o.conversationId, p_uploads: ids, p_caption: mode.inline ? text : null })) as unknown as string);
+  } catch (e) {
+    // La base de datos lo rechazó (ventana vencida, canal en pausa, permisos…): no quedan archivos huérfanos en el almacén.
+    for (const id of ids) await cancelUpload(db, store, id).catch(() => undefined);
+    throw e;
+  }
+  if (text && !mode.inline) out.push(await inboxRepo.queueMessage(db, o.conversationId, text));
+  return out;
+}
+/** Limpieza de subidas abandonadas: borra los archivos y las reservas vencidas. */
+export async function purgeStaleUploads(admin: Admin, store: MediaStore, limit = 200): Promise<number> {
+  const r = await admin.rpc('purge_stale_uploads', { p_limit: limit });
+  if (r.error) throw new Error(`purge_stale_uploads: ${r.error.code ?? r.error.message}`);
+  const rows = (r.data ?? []) as { storage_path: string }[];
+  await store.remove(rows.map((x) => x.storage_path)).catch(() => undefined);
+  return rows.length;
 }

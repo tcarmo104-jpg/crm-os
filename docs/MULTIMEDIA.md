@@ -3,9 +3,7 @@
 Los archivos que llegan por **WhatsApp, Instagram, Messenger y Gmail** se guardan en un almacén **privado** y se ven dentro de
 la conversación: imagen con vista ampliada, reproductor de video y de audio, y tarjeta de documento con «Ver» y «Descargar».
 
-> **Estado:** recepción, visualización y descarga están implementadas. **El envío de archivos desde el Inbox aún no** (los
-> botones 📎 siguen deshabilitados): es la siguiente fase. Las reglas de envío por canal ya están escritas y probadas en
-> `src/lib/media.ts` y se usarán tal cual.
+> **Estado:** recepción, visualización, descarga **y envío** de archivos están implementados (WhatsApp, Instagram, Messenger y Gmail).
 
 ## Cómo funciona
 
@@ -39,7 +37,24 @@ y se descargan solos; los de más de 7 días ya no existen en Meta y quedan «ex
 Estados que se muestran en lugar del archivo: *Descargando…*, *No se pudo descargar* (se reintenta solo, hasta 6 veces con espera
 creciente), *Ya no está disponible* (venció en el canal), *Bloqueado por seguridad* y *Eliminado por antigüedad*.
 
-## Lo que cada API permite ENVIAR (para la fase de envío)
+## Enviar archivos desde el Inbox
+
+En el redactor: **📎 Adjuntar archivo**, **🖼 Adjuntar imagen**, o **pegar** (Ctrl+V) / **arrastrar** un archivo. Se ve una vista previa con su nombre y
+tamaño y puedes quitarlo antes de enviar. Si escribes texto, viaja como pie de foto donde el canal lo permite; donde no, sale como un mensaje aparte
+(el redactor te lo avisa). El mensaje aparece de inmediato en la conversación con su estado: *En cola → Enviado → Entregado → Leído*, o *No se envió* con el motivo.
+
+**Cómo funciona por dentro**
+1. Al elegir el archivo se validan sus reglas con las del canal (tipo, tamaño, ejecutables) y se reserva un lugar en la conversación.
+2. El navegador lo sube **directo** al almacén privado con un enlace firmado (Vercel no admite cuerpos de más de 4,5 MB).
+3. Al pulsar «Enviar», el **servidor lo vuelve a verificar por su contenido** (tipo real, tamaño exacto, peligro) y solo entonces se encola: nadie puede saltarse esa revisión.
+4. El envío usa la API oficial de cada canal: WhatsApp (sube el archivo a Meta y envía el mensaje con su id), Messenger/Instagram (el archivo en la misma petición) y
+   Gmail (correo con adjuntos en el mismo hilo).
+5. Las subidas que no se envían (cancelaste o abandonaste) se borran solas.
+
+Mensajes que verás: «Este tipo de archivo no puede enviarse mediante Instagram», «El archivo supera el tamaño máximo permitido para WhatsApp (5 MB para imágenes)»,
+«Por seguridad no se pueden enviar programas, scripts ni páginas web».
+
+## Lo que cada API permite ENVIAR
 
 | Canal | Imagen | Video | Audio | Documento |
 |---|---|---|---|---|
@@ -74,6 +89,10 @@ Fuentes: documentación oficial de Meta (WhatsApp Business Platform, Messenger P
 > «No se pudo descargar» en lugar de guardarse.
 
 ## Límites conocidos
+
+- **Un archivo por mensaje** en WhatsApp, Messenger e Instagram (Gmail: hasta 10, 25 MB en total). El texto de un audio de WhatsApp, y todo texto en Messenger/Instagram, sale como mensaje aparte.
+- Pie de foto de WhatsApp: máximo 1024 caracteres.
+- El texto y el archivo de Messenger/Instagram son dos mensajes independientes (cada uno tiene su propio estado).
 
 - Sin miniaturas generadas (se usa la imagen original) ni vista previa de PDF dentro del Inbox (se abre en otra pestaña).
 - HEIC y algunos audios/videos (por ejemplo OGG/Opus en Safari) pueden no reproducirse en todos los navegadores: se ofrece descarga.

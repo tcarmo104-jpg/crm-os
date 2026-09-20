@@ -239,3 +239,12 @@ Sigue primero `docs/META-WHATSAPP.md` hasta dejar el canal conectado.
 3. **Comprueba en Supabase → Storage**: bucket `inbox-media` **privado** y la política «inbox-media: solo el servidor» (ver `docs/MULTIMEDIA.md`).
 4. Los archivos de WhatsApp de los últimos 7 días se descargarán solos en unos minutos (necesitas la tarea programada de §5 corriendo cada minuto).
 5. Prueba: envía una foto y un PDF a tu número de WhatsApp de prueba y ábrelos en el Inbox.
+
+## Actualizar a Envío de archivos (migración 0019)
+
+1. Supabase → SQL Editor → **New query** → pega `supabase/setup-desde-0019.sql` → **Run**. Debe terminar con `estado = LISTO`. (Requiere la 0018.) **No hay variables nuevas.**
+2. Sube el código a GitHub (arrastra las carpetas del ZIP → Commit) y espera el deploy de Vercel.
+3. **Prueba de la subida (importante):** abre una conversación de WhatsApp con la ventana abierta, pulsa 📎 y elige una imagen JPG pequeña. Debe aparecer «Listo para enviar».
+   Si aparece «No se pudo subir el archivo», la política de Storage de tu proyecto está bloqueando las subidas firmadas: avísame (la solución es ajustar esa política, no el código).
+4. Envía la imagen a tu propio número de prueba: debe verse en la conversación y llegar a WhatsApp.
+5. Comprueba Instagram/Messenger (imagen) y Gmail (PDF) si los tienes conectados.

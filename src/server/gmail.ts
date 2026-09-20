@@ -1,6 +1,6 @@
 import 'server-only';
 import { classifyGoogleError, redact, type Failure } from '@/lib/connections';
-import { buildRawEmail, replySubject, type GmailMessage } from '@/lib/gmail';
+import { buildMimeMessage, buildRawEmail, replySubject, type GmailMessage, type MailAttachment } from '@/lib/gmail';
 import type { SendResult } from './whatsapp';
 
 const API = 'https://gmail.googleapis.com/gmail/v1/users/me';
@@ -11,7 +11,7 @@ export type GoogleResult<T> = { ok: true; data: T } | GoogleFailure;
 export interface GoogleOpts { fetchImpl?: typeof fetch; timeoutMs?: number }
 export interface GoogleApp { clientId: string; clientSecret: string }
 
-async function gcall<T>(method: 'GET' | 'POST', url: string, o: GoogleOpts & { token?: string; form?: Record<string, string>; json?: unknown; params?: Record<string, string> } = {}): Promise<GoogleResult<T>> {
+async function gcall<T>(method: 'GET' | 'POST', url: string, o: GoogleOpts & { token?: string; form?: Record<string, string>; json?: unknown; params?: Record<string, string>; raw?: { body: Uint8Array; contentType: string } } = {}): Promise<GoogleResult<T>> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), o.timeoutMs ?? 15_000);
   const headers: Record<string, string> = {};
@@ -19,6 +19,7 @@ async function gcall<T>(method: 'GET' | 'POST', url: string, o: GoogleOpts & { t
   let body: string | undefined;
   if (o.form) { headers['Content-Type'] = 'application/x-www-form-urlencoded'; body = new URLSearchParams(o.form).toString(); }
   else if (o.json !== undefined) { headers['Content-Type'] = 'application/json'; body = JSON.stringify(o.json); }
+  else if (o.raw) { headers['Content-Type'] = o.raw.contentType; body = o.raw.body as unknown as string; }
   try {
     const res = await (o.fetchImpl ?? fetch)(`${url}${o.params ? `?${new URLSearchParams(o.params).toString()}` : ''}`, { method, headers, body, signal: ctrl.signal });
     const data = (await res.json().catch(() => null)) as Record<string, unknown> | null;
@@ -58,6 +59,7 @@ export const getGmailMessage = (access: string, id: string, o: GoogleOpts = {}):
 export interface EmailSend {
   refreshToken: string; app: GoogleApp; from: string; fromName?: string | null; to: string; body: string;
   replyMeta: { message_id?: string | null; subject?: string | null; references?: string | null; gmail_thread_id?: string | null };
+  attachments?: MailAttachment[];
   fetchImpl?: typeof fetch;
 }
 /**
@@ -69,11 +71,22 @@ export async function sendGmailReply(i: EmailSend): Promise<SendResult> {
   if (!tok.ok) return tok.kind === 'transient' ? { ok: false, definitive: false, message: 'No se pudo confirmar el envío (sin respuesta de Google).' } : { ok: false, definitive: true, code: tok.code, message: 'La conexión con Gmail requiere autorización nuevamente. Vuelve a autorizarla en Configuración → Conexiones.' };
   const access = tok.data.access_token;
   if (!access) return { ok: false, definitive: true, code: 'no_access_token', message: 'Google no entregó un acceso válido.' };
-  let raw: string;
+  const subject = replySubject(i.replyMeta.subject);
+  let r: GoogleResult<{ id?: string }>;
   try {
-    raw = buildRawEmail({ from: i.from, fromName: i.fromName, to: i.to, subject: replySubject(i.replyMeta.subject), body: i.body, inReplyTo: i.replyMeta.message_id ?? null, references: i.replyMeta.references ?? null });
+    if (i.attachments && i.attachments.length > 0) {
+      // Con archivos: carga «multipart» (documentada hasta 35 MB): metadatos (hilo) + el correo completo.
+      const mime = buildMimeMessage({ from: i.from, fromName: i.fromName, to: i.to, subject, body: i.body, inReplyTo: i.replyMeta.message_id ?? null, references: i.replyMeta.references ?? null, attachments: i.attachments });
+      const boundary = `gm_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+      const enc = new TextEncoder();
+      const meta = JSON.stringify(i.replyMeta.gmail_thread_id ? { threadId: i.replyMeta.gmail_thread_id } : {});
+      const body = Buffer.concat([enc.encode(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: message/rfc822\r\n\r\n`), mime, enc.encode(`\r\n--${boundary}--`)]);
+      r = await gcall<{ id?: string }>('POST', 'https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send', { fetchImpl: i.fetchImpl, token: access, timeoutMs: 120_000, params: { uploadType: 'multipart' }, raw: { body, contentType: `multipart/related; boundary=${boundary}` } });
+    } else {
+      const raw = buildRawEmail({ from: i.from, fromName: i.fromName, to: i.to, subject, body: i.body, inReplyTo: i.replyMeta.message_id ?? null, references: i.replyMeta.references ?? null });
+      r = await gcall<{ id?: string }>('POST', `${API}/messages/send`, { fetchImpl: i.fetchImpl, token: access, json: { raw, ...(i.replyMeta.gmail_thread_id ? { threadId: i.replyMeta.gmail_thread_id } : {}) } });
+    }
   } catch { return { ok: false, definitive: true, code: 'bad_recipient', message: 'La dirección del destinatario no es válida.' }; }
-  const r = await gcall<{ id?: string }>('POST', `${API}/messages/send`, { fetchImpl: i.fetchImpl, token: access, json: { raw, ...(i.replyMeta.gmail_thread_id ? { threadId: i.replyMeta.gmail_thread_id } : {}) } });
   if (r.ok) return r.data.id ? { ok: true, externalId: r.data.id } : { ok: false, definitive: false, message: 'Respuesta inesperada de Google.' };
   if (r.kind === 'transient') return { ok: false, definitive: false, message: 'No se pudo confirmar el envío (sin respuesta de Google).' };
   return { ok: false, definitive: true, code: r.code, message: r.state === 'needs_auth' ? 'La conexión con Gmail no tiene permiso para enviar. Vuelve a autorizarla en Configuración → Conexiones.' : r.state === 'token_expired' ? 'La conexión con Gmail requiere autorización nuevamente. Vuelve a autorizarla en Configuración → Conexiones.' : `Gmail rechazó el envío: ${r.detail}` };

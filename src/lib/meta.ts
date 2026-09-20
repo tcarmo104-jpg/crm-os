@@ -202,6 +202,13 @@ export function describeSendError(code: unknown, fallback?: string | null): stri
 export function buildTextPayload(to: string, body: string) {
   return { messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'text', text: { preview_url: false, body } };
 }
+/** Mensaje con un archivo YA subido a WhatsApp (por su id). El audio no lleva pie de foto; el documento lleva su nombre. */
+export function buildMediaPayload(to: string, type: 'image' | 'video' | 'audio' | 'document', mediaId: string, o: { caption?: string | null; fileName?: string | null } = {}) {
+  const body: Record<string, unknown> = { id: mediaId };
+  if (type !== 'audio' && o.caption) body.caption = o.caption.slice(0, 1024);
+  if (type === 'document' && o.fileName) body.filename = o.fileName.slice(0, 240);
+  return { messaging_product: 'whatsapp', recipient_type: 'individual', to, type, [type]: body };
+}
 export function buildTemplatePayload(to: string, name: string, language: string, params: string[]) {
   return {
     messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'template',

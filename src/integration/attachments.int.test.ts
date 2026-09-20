@@ -45,6 +45,9 @@ const store: MediaStore = {
   put: async (p, bytes, mime) => { files.set(p, { bytes, mime }); },
   signedUrl: async (p, ttl, dl) => (files.has(p) ? `https://storage.test/${p}?ttl=${ttl}${dl ? `&download=${encodeURIComponent(dl)}` : ''}` : null),
   remove: async (ps) => { ps.forEach((p) => files.delete(p)); },
+  head: async (p) => { const f = files.get(p); return f ? { size: f.bytes.length, head: f.bytes.slice(0, 4096) } : null; },
+  get: async (p) => files.get(p)?.bytes ?? null,
+  signedUploadUrl: async (p) => ({ token: 'tok', path: p }),
 };
 
 // ------------------------------------------------------------------------------------------------ Meta y Google simulados

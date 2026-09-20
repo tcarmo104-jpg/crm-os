@@ -9,7 +9,7 @@ export interface GraphOpts { fetchImpl?: typeof fetch; timeoutMs?: number }
 
 interface MetaErrorBody { error?: { message?: string; code?: number | string; error_subcode?: number | string; type?: string } }
 
-export interface CallOpts extends GraphOpts { params?: Record<string, string>; json?: unknown; form?: Record<string, string> }
+export interface CallOpts extends GraphOpts { params?: Record<string, string>; json?: unknown; form?: Record<string, string>; multipart?: FormData }
 
 /** Llamada a la Graph API de Meta. `token` null = sin Authorization (intercambio de códigos OAuth). Nunca devuelve secretos. */
 export async function graphCall<T>(method: 'GET' | 'POST', path: string, token: string | null, o: CallOpts = {}): Promise<GraphResult<T>> {
@@ -22,7 +22,8 @@ export async function graphCall<T>(method: 'GET' | 'POST', path: string, token: 
   if (o.form) { headers['Content-Type'] = 'application/x-www-form-urlencoded'; body = new URLSearchParams(o.form).toString(); }
   else if (o.json !== undefined) { headers['Content-Type'] = 'application/json'; body = JSON.stringify(o.json); }
   try {
-    const res = await (o.fetchImpl ?? fetch)(`${graphBase()}/${path}${qs}`, { method, headers, body, signal: ctrl.signal });
+    // multipart: NO se fija el Content-Type (el cliente añade el «boundary» correcto)
+    const res = await (o.fetchImpl ?? fetch)(`${graphBase()}/${path}${qs}`, { method, headers, body: o.multipart ?? body, signal: ctrl.signal });
     const data = (await res.json().catch(() => null)) as (MetaErrorBody & Record<string, unknown>) | null;
     if (res.ok) return { ok: true, data: (data ?? {}) as T };
     if (res.status >= 500) return { ok: false, kind: 'transient', state: null, code: String(res.status), detail: `Meta respondió ${res.status}.` };

@@ -22,7 +22,7 @@ import { ConversationList, type ListRow } from '@/components/inbox/ConversationL
 import { Ico } from '@/components/inbox/icons';
 import { Thread } from '@/components/inbox/Thread';
 import {
-  addTagAction, assignOwnerAction, createQuickReplyAction, deleteQuickReplyAction, removeTagAction, sendMessageAction, sendNoteAction,
+  addTagAction, assignOwnerAction, createQuickReplyAction, deleteQuickReplyAction, removeTagAction, sendMessageAction, sendNoteAction, prepareAttachmentAction, cancelAttachmentAction, sendAttachmentsAction,
   sendTemplateAction, setConversationStatusAction,
 } from './actions';
 import './inbox.css';
@@ -31,6 +31,8 @@ export const metadata: Metadata = { title: 'Inbox' };
 
 const DAY = 24 * 60 * 60 * 1000;
 const SYSTEM_EVENTS = new Set(['conversation.opened', 'conversation.reopened', 'customer.assigned', 'customer.dnc_set', 'customer.dnc_cleared']);
+
+export const maxDuration = 60;   // enviar archivos grandes puede tardar
 
 export default async function InboxPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;
@@ -134,6 +136,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
             key={`${conversation.id}:${mine}`} conversationId={conversation.id} customerId={ctx.customer.id}
             channel={kindOfConv} canReply={canUpdate} windowOpen={windowOpen} windowClosesLabel={closesLabel} dnc={ctx.customer.doNotContact} paused={channel?.status === 'paused'}
             quickReplies={quick} templates={templates.filter((t) => t.channelId === conversation.channelId && t.status === 'approved').map((t) => ({ id: t.id, name: t.name, body: t.body, paramCount: t.paramCount }))}
+            attach={{ prepare: prepareAttachmentAction, cancel: cancelAttachmentAction, send: sendAttachmentsAction }}
             actions={{ send: sendMessageAction, note: sendNoteAction, template: sendTemplateAction, createQuick: createQuickReplyAction, deleteQuick: deleteQuickReplyAction }}
           />
           <ContextToggle variant="edge" initialOpen={ctxState === 'open'} />

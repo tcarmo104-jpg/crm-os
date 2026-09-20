@@ -465,3 +465,21 @@ Nadie escribe desde el navegador: todo pasa por funciones `security definer` que
 - **Conservación**: 12 meses (`expires_at`); `expire_attachments` devuelve las rutas a borrar.
 - **Interfaz**: el visor ampliado se dibuja en un portal a `body` (por encima de la cabecera); las etiquetas automáticas (`[Imagen]`…) se ocultan si el adjunto se ve.
 - **Pendiente**: envío (fase siguiente), miniaturas, vista previa de PDF, conversión de audio/HEIC. Ver `docs/MULTIMEDIA.md`.
+
+## 23. Envío de archivos (migración 0019)
+
+Tabla `attachment_uploads` (reserva temporal, 2 h) y funciones `create_attachment_upload` / `cancel_attachment_upload` / `queue_media_message` (las llama la propia persona,
+con la seguridad de la base de datos) y `verify_attachment_upload` / `get_attachment_upload` / `purge_stale_uploads` (**solo el servidor**). El id de la reserva es el id del adjunto
+y su ruta la del archivo: no se copia nada al encolar.
+
+- **Verificación en dos tiempos**: el cliente valida lo que se puede saber sin el contenido (`validateOutgoing`); el servidor, al enviar, lee la cabecera del archivo subido
+  (`MediaStore.head`), comprueba tamaño exacto, tipo real y peligro, y solo entonces lo marca `verified`. `queue_media_message` exige subidas verificadas, del que envía, de
+  esta conversación, sin usar y sin repetir; aplica las MISMAS reglas que el texto (permiso, ventana 24 h / 30 días en Gmail, pausa, desconexión) y el máximo por canal.
+- **Texto que acompaña**: `captionMode` decide si viaja en el mismo mensaje (WhatsApp imagen/video/documento, Gmail) o como un segundo mensaje de texto (audio de WhatsApp, Messenger, Instagram).
+- **Entrega** (`deliverMessage`, rama `kind = 'media'`): lee el archivo del almacén; WhatsApp → `POST /media` + `POST /messages` (si falla la subida, nada salió: rechazo definitivo);
+  Messenger/Instagram → `me/messages` multipart (`filedata`); Gmail → `upload/gmail/v1/users/me/messages/send?uploadType=multipart` con el hilo. «Como máximo una vez»: un resultado
+  desconocido no se reenvía. Un token vencido marca la conexión; un mensaje fuera de ventana no.
+- **Acciones del Inbox**: `prepareAttachmentAction`, `cancelAttachmentAction`, `sendAttachmentsAction` (espera hasta 25 s la entrega y sigue en segundo plano con `after()`; si un archivo falla,
+  el texto que lo acompañaba se descarta y el motivo se muestra como aviso).
+- **Redactor** (`Composer.tsx`): subida directa con `uploadToSignedUrl`, vista previa, cancelar (borra del almacén), pegar y arrastrar; el selector solo ofrece lo que el canal admite.
+- **Pendiente**: enviar varios archivos por mensaje en Messenger/Instagram, mensajes con plantilla + archivo, grabar notas de voz desde el navegador.
