@@ -233,3 +233,6 @@ textarea.kb-input { resize: vertical; }
   .kb-quick .kb-more { order: -1; }
   .kb-more-pop { position: fixed; left: 12px; right: 12px; top: 130px; width: auto; max-height: 70dvh; overflow-y: auto; }
 }
+
+/* El texto de un botón primario que es un enlace no debe heredar el color del panel (quedaba morado sobre morado). */
+a.kb-btn.kb-btn--primary, a.kb-btn.kb-btn--primary:hover { color: var(--kb-on-accent); }

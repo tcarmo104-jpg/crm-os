@@ -330,3 +330,20 @@ textarea.ib-input { height: auto; padding: 8px 10px; resize: vertical; }
 .ib-chip-x { display: inline-grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 6px; background: transparent; color: var(--ib-muted); cursor: pointer; }
 .ib-chip-x:hover { background: var(--ib-hover); color: var(--ib-text, inherit); }
 .ib-send { white-space: nowrap; }
+
+/* ---- Archivos del cliente (panel derecho) ---- */
+.ib-files { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ib-files-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.ib-files-tabs button { display: inline-flex; gap: 5px; align-items: center; padding: 3px 9px; border: 1px solid var(--ib-line); border-radius: 999px; background: transparent; color: var(--ib-muted); font: inherit; font-size: 12px; cursor: pointer; }
+.ib-files-tabs button span { font-weight: 700; }
+.ib-files-tabs button.is-active { background: var(--ib-accent-soft); color: var(--ib-accent); border-color: transparent; font-weight: 600; }
+.ib-files-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+.ib-files-thumb { display: block; width: 100%; aspect-ratio: 1; padding: 0; border: 0; border-radius: 8px; overflow: hidden; background: var(--ib-line); cursor: zoom-in; }
+.ib-files-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ib-files-list { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ib-files-list li { display: flex; gap: 8px; align-items: flex-start; min-width: 0; }
+.ib-files-text { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.3; }
+.ib-files-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.ib-files-text small { color: var(--ib-muted); font-size: 11.5px; overflow-wrap: anywhere; }
+.ib-files-links { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 2px; font-size: 12px; }
+.ib-files-more { font-size: 12px; }

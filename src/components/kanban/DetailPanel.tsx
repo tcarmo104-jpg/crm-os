@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { QUOTE_STATUS } from '@/lib/commerce-labels';
 import { OPP_CHANNELS, OPP_CHANNEL_LABEL, PRIORITIES, PRIORITY_LABEL, TEMPERATURES, TEMPERATURE_LABEL } from '@/lib/kanban';
 import { buildHistory } from '@/lib/kanban-history';
+import { extOf, formatBytes } from '@/lib/media';
 import { formatMoney } from '@/lib/money';
 import type { OpportunityDetail } from '@/repositories/opportunities-board';
 import type { StageRow } from '@/lib/types';
@@ -107,6 +108,21 @@ export function DetailPanel({
           </ul>
         )}
       </section>
+
+      {d.files.length > 0 ? (
+        <section aria-labelledby="kb-s-files">
+          <h3 id="kb-s-files">Archivos de la conversación ({d.files.length})</h3>
+          <ul className="kb-lines">
+            {d.files.map((f) => (
+              <li key={f.id}>
+                <a href={`/api/media/${f.id}`} target="_blank" rel="noopener noreferrer">{f.fileName ?? 'Archivo'}</a>
+                <span className="kb-hint">{[extOf(f.fileName).toUpperCase(), formatBytes(f.fileSize)].filter(Boolean).join(' · ')}</span>
+                <a href={`/api/media/${f.id}?download=1`}>Descargar</a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section aria-labelledby="kb-s-act">
         <h3 id="kb-s-act">Actividades</h3>

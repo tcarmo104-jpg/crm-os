@@ -275,7 +275,7 @@ describe('visibilidad y limpieza', () => {
     await cancelUpload(s1, store, up); expect(files.has(path)).toBe(false);
     const ab = await stage(C_WA, 'b.jpg', 'image/jpeg', JPEG); const abPath = sql(`select storage_path from attachment_uploads where id = '${ab}'`);
     sql(`update attachment_uploads set expires_at = now() - interval '1 minute' where id = '${ab}'`);
-    const sentPath = String((await repo.listAttachments(s1, C_WA)).length ? sql(`select storage_path from message_attachments where file_name = 'fachada.jpg'`) : '');
+    const sentPath = String((await repo.listAttachments(s1, C_WA)).length ? sql(`select storage_path from message_attachments where file_name = 'fachada.jpg' and org_id = '${org}'`) : '');
     expect(await purgeStaleUploads(admin(), store)).toBeGreaterThanOrEqual(1);
     expect(files.has(abPath)).toBe(false); expect(files.has(sentPath)).toBe(true);
   });

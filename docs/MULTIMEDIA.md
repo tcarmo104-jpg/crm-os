@@ -66,6 +66,16 @@ Mensajes que verás: «Este tipo de archivo no puede enviarse mediante Instagram
 Fuentes: documentación oficial de Meta (WhatsApp Business Platform, Messenger Platform, Instagram Messaging) y de Gmail API
 (consultada el 20/09/2026). WhatsApp **no** acepta GIF, WebP (salvo sticker), HEIC, MOV, WebM, CSV ni ZIP como archivo.
 
+## Archivos del cliente y de la oportunidad
+
+- **En el Inbox** (panel derecho del cliente) hay una sección **Archivos** con el total: TODO lo que ese cliente ha enviado o ha recibido por **cualquier canal**
+  (WhatsApp, Instagram, Messenger, Gmail), lo más reciente primero. Pestañas: *Todo · Imágenes · Documentos · Audio y video*. Las imágenes son miniaturas con vista
+  ampliada (se navega entre las de todos los canales); el resto son filas con «Ver» (PDF y TXT) y «Descargar». Cada archivo dice su tamaño, fecha, canal y si fue
+  recibido o enviado; los que vienen de otra conversación traen «Ir a su conversación». Se muestran los 60 más recientes.
+- **En Oportunidades** (detalle de la oportunidad) aparece **Archivos de la conversación (N)** con los de la conversación vinculada (una oportunidad nace vinculada
+  a la última conversación del cliente; puedes cambiarla). Sin conversación vinculada no se muestra nada.
+- Siempre con la seguridad de la base de datos: un vendedor solo ve los archivos de los clientes/conversaciones a los que ya tiene acceso; otra organización, nada.
+
 ## Seguridad
 
 - **Bucket privado** sin acceso desde el navegador. Además la migración crea una política *restrictiva* que impide a cualquier

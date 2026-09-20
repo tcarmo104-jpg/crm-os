@@ -238,6 +238,8 @@ export interface AttachmentRow {
   id: string; messageId: string; kind: 'image' | 'video' | 'audio' | 'document' | 'sticker' | 'file' | 'location' | 'contact' | 'unsupported';
   status: 'pending' | 'downloading' | 'stored' | 'failed' | 'expired' | 'blocked' | 'unsupported'; mimeType: string | null; fileName: string | null;
   fileSize: number | null; width: number | null; height: number | null; isVoice: boolean; errorCode: string | null; meta: Record<string, unknown>;
+  /** Solo en las listas «archivos del cliente / de la oportunidad»: de qué conversación y canal viene y cuándo. */
+  createdAt?: string; direction?: 'inbound' | 'outbound'; conversationId?: string; channel?: 'whatsapp' | 'facebook' | 'instagram' | 'gmail';
 }
 export interface MessageRow {
   id: string; direction: 'inbound' | 'outbound'; kind: 'text' | 'template' | 'media' | 'other'; body: string; status: MessageStatus;

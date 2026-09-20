@@ -1,3 +1,7 @@
+import { CustomerFiles } from './CustomerFiles';
+import type { AttachmentRow } from '@/lib/types';
+
+export const FILES_LIMIT = 60;
 import Link from 'next/link';
 import { formatMoney } from '@/lib/money';
 import { SALE_STATUS } from '@/lib/commerce-labels';
@@ -26,9 +30,9 @@ function Section({ title, count, open = true, children, action }: { title: strin
 }
 
 export function ContextPanel({
-  ctx, allTags, ownerName, timeZone, conversationId, canEditCustomer, actions, nameOf,
+  ctx, allTags, ownerName, timeZone, conversationId, canEditCustomer, actions, nameOf, files,
 }: {
-  ctx: CustomerContext; allTags: TagRow[]; ownerName: string | null; timeZone: string; conversationId: string; canEditCustomer: boolean;
+  ctx: CustomerContext; allTags: TagRow[]; ownerName: string | null; timeZone: string; conversationId: string; canEditCustomer: boolean; files: AttachmentRow[];
   actions: { addTag: Action; removeTag: Action }; nameOf: (id: string | null) => string;
 }) {
   const c = ctx.customer;
@@ -99,6 +103,10 @@ export function ContextPanel({
             })}
           </ul>
         )}
+      </Section>
+
+      <Section title="Archivos" count={files.length} open={false}>
+        <CustomerFiles items={files} currentConversationId={conversationId} timeZone={timeZone} limit={FILES_LIMIT} />
       </Section>
 
       <Section title="Notas" count={ctx.noteCount} open={false}>

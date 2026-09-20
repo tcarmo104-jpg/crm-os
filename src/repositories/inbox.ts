@@ -52,14 +52,41 @@ export async function listMessages(db: ServerSupabase, conversationId: string, l
   return rows.reverse().map((r) => ({ id: r.id, direction: r.direction, kind: r.kind, body: r.body, status: r.status, error: r.error, errorCode: r.error_code, sentBy: r.sent_by, occurredAt: r.occurred_at, meta: r.meta ?? {} }));
 }
 
+const ATT_COLUMNS = 'id, message_id, conversation_id, direction, kind, status, mime_type, file_name, file_size, width, height, is_voice, error_code, meta, created_at, position';
+type AttRaw = { id: string; message_id: string; conversation_id: string; direction: 'inbound' | 'outbound'; kind: AttachmentRow['kind']; status: AttachmentRow['status']; mime_type: string | null; file_name: string | null;
+  file_size: number | null; width: number | null; height: number | null; is_voice: boolean; error_code: string | null; meta: Record<string, unknown> | null; created_at: string };
+const mapAttachment = (r: AttRaw, channel?: AttachmentRow['channel']): AttachmentRow => ({
+  id: r.id, messageId: r.message_id, kind: r.kind, status: r.status, mimeType: r.mime_type, fileName: r.file_name, fileSize: r.file_size, width: r.width, height: r.height,
+  isVoice: r.is_voice, errorCode: r.error_code, meta: r.meta ?? {}, createdAt: r.created_at, direction: r.direction, conversationId: r.conversation_id, ...(channel ? { channel } : {}),
+});
+
 /** Adjuntos de una conversación. La ruta del archivo NO se pide: el navegador solo conoce el id y pasa por la ruta autorizada. */
 export async function listAttachments(db: ServerSupabase, conversationId: string): Promise<AttachmentRow[]> {
-  const rows = unwrap(await db.from('message_attachments').select('id, message_id, kind, status, mime_type, file_name, file_size, width, height, is_voice, error_code, meta, position')
-    .eq('conversation_id', conversationId).order('created_at').order('position').limit(1000)) as unknown as
-    { id: string; message_id: string; kind: AttachmentRow['kind']; status: AttachmentRow['status']; mime_type: string | null; file_name: string | null; file_size: number | null;
-      width: number | null; height: number | null; is_voice: boolean; error_code: string | null; meta: Record<string, unknown> | null }[];
-  return rows.map((r) => ({ id: r.id, messageId: r.message_id, kind: r.kind, status: r.status, mimeType: r.mime_type, fileName: r.file_name, fileSize: r.file_size,
-    width: r.width, height: r.height, isVoice: r.is_voice, errorCode: r.error_code, meta: r.meta ?? {} }));
+  const rows = unwrap(await db.from('message_attachments').select(ATT_COLUMNS).eq('conversation_id', conversationId).order('created_at').order('position').limit(1000)) as unknown as AttRaw[];
+  return rows.map((r) => mapAttachment(r));
+}
+
+const FILE_KINDS = ['image', 'video', 'audio', 'document', 'sticker', 'file'];
+/**
+ * Archivos YA guardados de un cliente, de TODAS sus conversaciones y canales (lo más reciente primero). Todo pasa por la seguridad de la base de datos:
+ * solo salen los de las conversaciones que la persona puede ver.
+ */
+export async function listCustomerAttachments(db: ServerSupabase, customerId: string, limit = 60): Promise<AttachmentRow[]> {
+  const convs = unwrap(await db.from('conversations').select('id, channel_id').eq('customer_id', customerId).limit(200)) as unknown as { id: string; channel_id: string }[];
+  if (convs.length === 0) return [];
+  const chans = unwrap(await db.from('channels').select('id, kind').in('id', [...new Set(convs.map((c) => c.channel_id))])) as unknown as { id: string; kind: AttachmentRow['channel'] }[];
+  const kindOf = new Map(chans.map((c) => [c.id, c.kind]));
+  const chanOf = new Map(convs.map((c) => [c.id, kindOf.get(c.channel_id)]));
+  const rows = unwrap(await db.from('message_attachments').select(ATT_COLUMNS).in('conversation_id', convs.map((c) => c.id)).eq('status', 'stored').in('kind', FILE_KINDS)
+    .order('created_at', { ascending: false }).limit(limit)) as unknown as AttRaw[];
+  return rows.map((r) => mapAttachment(r, chanOf.get(r.conversation_id)));
+}
+
+/** Archivos ya guardados de UNA conversación (por ejemplo, la vinculada a una oportunidad). */
+export async function listConversationFiles(db: ServerSupabase, conversationId: string, limit = 30): Promise<AttachmentRow[]> {
+  const rows = unwrap(await db.from('message_attachments').select(ATT_COLUMNS).eq('conversation_id', conversationId).eq('status', 'stored').in('kind', FILE_KINDS)
+    .order('created_at', { ascending: false }).limit(limit)) as unknown as AttRaw[];
+  return rows.map((r) => mapAttachment(r));
 }
 
 export async function getMessageOutcome(db: ServerSupabase, id: string): Promise<{ status: string; error: string | null } | null> {

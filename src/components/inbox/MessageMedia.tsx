@@ -30,7 +30,7 @@ function Card({ icon, title, hint, actions }: { icon: string; title: string; hin
 }
 
 /** Visor ampliado: se cierra con Esc, con el botón o tocando fuera; se puede descargar; la conversación queda intacta detrás. */
-function Lightbox({ images, index, onClose, onIndex }: { images: AttachmentRow[]; index: number; onClose: () => void; onIndex: (i: number) => void }) {
+export function Lightbox({ images, index, onClose, onIndex }: { images: AttachmentRow[]; index: number; onClose: () => void; onIndex: (i: number) => void }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const cur = images[index]!;
   useEffect(() => {

@@ -248,3 +248,11 @@ Sigue primero `docs/META-WHATSAPP.md` hasta dejar el canal conectado.
    Si aparece «No se pudo subir el archivo», la política de Storage de tu proyecto está bloqueando las subidas firmadas: avísame (la solución es ajustar esa política, no el código).
 4. Envía la imagen a tu propio número de prueba: debe verse en la conversación y llegar a WhatsApp.
 5. Comprueba Instagram/Messenger (imagen) y Gmail (PDF) si los tienes conectados.
+
+## Actualizar a Archivos del cliente + corrección de Gmail en Oportunidades (migración 0020)
+
+1. **Si aún NO instalaste la 0019:** ejecuta `supabase/setup-desde-0019.sql` (ya incluye la 0020).  
+   **Si YA instalaste la 0019:** ejecuta solo `supabase/setup-desde-0020.sql`. Ambos terminan con `estado = LISTO`.
+2. Sube el código a GitHub (arrastra las carpetas del ZIP → Commit) y espera el deploy de Vercel.
+3. Prueba: abre una conversación con archivos → en el panel derecho, **Archivos** (ábrelo). Abre una oportunidad de ese cliente: debe aparecer **Archivos de la conversación**.
+4. Importante: **sin la 0020, crear la oportunidad de un cliente que escribió por Gmail da error.** Instálala aunque no uses los archivos.

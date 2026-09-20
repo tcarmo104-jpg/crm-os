@@ -7,7 +7,7 @@ import { INBOX_CONTEXT_COOKIE, contactLabel, inboxHref, parseContextCookie, pars
 import { buildThread } from '@/lib/thread';
 import { describeEvent } from '@/lib/timeline';
 import {
-  getConversation, listAttachments, listChannels, listMessages, listQuickReplies, listTags, listTemplates, markRead, searchConversations, tabCounts, tagsByCustomer,
+  getConversation, listAttachments, listCustomerAttachments, listChannels, listMessages, listQuickReplies, listTags, listTemplates, markRead, searchConversations, tabCounts, tagsByCustomer,
 } from '@/repositories/inbox';
 import { loadCustomerContext } from '@/repositories/inbox-context';
 import { getCustomersByIds, timeline } from '@/repositories/customers';
@@ -16,7 +16,7 @@ import { AutoRefresh } from '@/components/AutoRefresh';
 import { Notice } from '@/components/ui';
 import { ChatHeader } from '@/components/inbox/ChatHeader';
 import { Composer } from '@/components/inbox/Composer';
-import { ContextPanel } from '@/components/inbox/ContextPanel';
+import { ContextPanel, FILES_LIMIT } from '@/components/inbox/ContextPanel';
 import { ContextToggle } from '@/components/inbox/ContextToggle';
 import { ConversationList, type ListRow } from '@/components/inbox/ConversationList';
 import { Ico } from '@/components/inbox/icons';
@@ -101,12 +101,13 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
         </div>
       );
     } else {
-      const [messages, events, quick, templates, attachments] = await Promise.all([
+      const [messages, events, quick, templates, attachments, customerFiles] = await Promise.all([
         listMessages(db, conversation.id, 300),
         timeline(db, conversation.customerId, 100).catch(() => []),
         canUpdate ? listQuickReplies(db, org.orgId) : Promise.resolve([]),
         canUpdate ? listTemplates(db, org.orgId) : Promise.resolve([]),
         listAttachments(db, conversation.id).catch(() => []),
+        listCustomerAttachments(db, conversation.customerId, FILES_LIMIT).catch(() => []),
       ]);
       const items = buildThread(
         messages,
@@ -145,7 +146,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
       context = (
         <ContextPanel
           ctx={ctx} allTags={tags} ownerName={ctx.customer.ownerId ? memberName(ctx.customer.ownerId) : null} timeZone={org.orgTimezone}
-          conversationId={conversation.id} canEditCustomer={canEditCustomer} actions={{ addTag: addTagAction, removeTag: removeTagAction }} nameOf={memberName}
+          conversationId={conversation.id} files={customerFiles} canEditCustomer={canEditCustomer} actions={{ addTag: addTagAction, removeTag: removeTagAction }} nameOf={memberName}
         />
       );
     }

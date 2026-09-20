@@ -287,3 +287,8 @@ export const MAX_UPLOAD_BYTES = 100 * MB;
 const MIME_BY_EXT: Record<string, string> = Object.fromEntries(Object.entries(EXT_BY_MIME).flatMap(([mime, exts]) => exts.split(',').map((e) => [e.slice(1), mime])));
 /** Algunos navegadores no informan el tipo de un archivo (cadena vacía): se deduce de la extensión (luego el servidor lo verifica por contenido). */
 export const mimeFromName = (name: string | null | undefined): string => MIME_BY_EXT[extOf(name)] ?? '';
+
+export type FileGroup = 'images' | 'docs' | 'av';
+export const FILE_GROUPS: { key: FileGroup; label: string }[] = [{ key: 'images', label: 'Imágenes' }, { key: 'docs', label: 'Documentos' }, { key: 'av', label: 'Audio y video' }];
+/** En qué pestaña de «Archivos» cae cada tipo: imágenes (y stickers), audio/video, y todo lo demás como documentos. */
+export const fileGroup = (kind: MediaKind): FileGroup => (kind === 'image' || kind === 'sticker' ? 'images' : kind === 'video' || kind === 'audio' ? 'av' : 'docs');

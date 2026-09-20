@@ -1,3 +1,5 @@
+import { listConversationFiles } from '@/repositories/inbox';
+import type { AttachmentRow } from '@/lib/types';
 import type { ServerSupabase } from '@/lib/supabase/server';
 import { unwrap } from '@/lib/errors';
 import { closeRange, createdFrom, type BoardCard, type KanbanQuery, type OppChannel } from '@/lib/kanban';
@@ -151,6 +153,8 @@ export interface ProductLineDetail { description: string; quantity: number; tota
 export interface OpportunityDetail {
   opp: OpportunityRow; customer: CustomerRow; identifiers: IdentifierRow[]; company: { id: string; fullName: string } | null;
   quotes: QuoteRow[]; products: ProductLineDetail[]; productsFrom: string | null; activities: ActivityRow[]; tasks: TaskRow[]; transitions: TransitionRow[];
+  /** Archivos de la conversación vinculada (si la hay y la persona puede verla). */
+  files: AttachmentRow[];
 }
 
 export async function loadOpportunityDetail(db: ServerSupabase, orgId: string, id: string): Promise<OpportunityDetail | null> {
@@ -158,13 +162,14 @@ export async function loadOpportunityDetail(db: ServerSupabase, orgId: string, i
   if (!opp) return null;
   const customer = await getCustomer(db, opp.customerId);
   if (!customer) return null;
-  const [identifiers, quotesPage, activities, tasks, transitions, companies] = await Promise.all([
+  const [identifiers, quotesPage, activities, tasks, transitions, companies, files] = await Promise.all([
     listIdentifiers(db, [customer.id]),
     listQuotes(db, { orgId, opportunityId: id, limit: 50 }),
     listActivities(db, { opportunityId: id, limit: 50 }),
     listTasks(db, { orgId, opportunityId: id, limit: 50 }),
     listTransitions(db, 'opportunity', id),
     customer.companyId ? getCustomersByIds(db, [customer.companyId]) : Promise.resolve([] as CustomerRow[]),
+    opp.conversationId ? listConversationFiles(db, opp.conversationId, 20).catch(() => [] as AttachmentRow[]) : Promise.resolve([] as AttachmentRow[]),
   ]);
   const active = quotesPage.items.find((q) => q.status !== 'superseded' && q.status !== 'rejected') ?? null;   // la más reciente vigente
   let products: ProductLineDetail[] = [];
@@ -174,7 +179,7 @@ export async function loadOpportunityDetail(db: ServerSupabase, orgId: string, i
   }
   return {
     opp, customer, identifiers, company: companies[0] ? { id: companies[0].id, fullName: companies[0].fullName } : null,
-    quotes: quotesPage.items, products, productsFrom: active ? active.number : null, activities, tasks, transitions,
+    quotes: quotesPage.items, products, productsFrom: active ? active.number : null, activities, tasks, transitions, files,
   };
 }
 

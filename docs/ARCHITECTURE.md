@@ -483,3 +483,11 @@ y su ruta la del archivo: no se copia nada al encolar.
   el texto que lo acompañaba se descarta y el motivo se muestra como aviso).
 - **Redactor** (`Composer.tsx`): subida directa con `uploadToSignedUrl`, vista previa, cancelar (borra del almacén), pegar y arrastrar; el selector solo ofrece lo que el canal admite.
 - **Pendiente**: enviar varios archivos por mensaje en Messenger/Instagram, mensajes con plantilla + archivo, grabar notas de voz desde el navegador.
+
+## 24. Archivos por cliente y por oportunidad; corrección de canal en oportunidades (migración 0020)
+
+- `listCustomerAttachments(db, customerId, limit)` reúne los adjuntos GUARDADOS de todas las conversaciones del cliente (cualquier canal); `listConversationFiles` los de una conversación.
+  Ambas consultas van con el cliente DEL USUARIO: la seguridad por filas de `message_attachments`/`conversations` decide qué sale. Nunca devuelven la ruta del archivo.
+- UI: `CustomerFiles` (panel del Inbox; reutiliza el visor `Lightbox`) y una sección en `DetailPanel` de Oportunidades (`OpportunityDetail.files`, con la conversación vinculada).
+- **Corrección (0020)**: el disparador `app.opportunities_defaults` copiaba `channels.kind` a `opportunities.channel`; desde Gmail ese tipo es `gmail` y la restricción solo admite
+  `email` → no se podía crear la oportunidad de un cliente cuya última conversación fue por Gmail. Ahora `gmail → email`. Es el único lugar que copia el tipo de canal a una columna restringida.

@@ -68,6 +68,11 @@ sentinel() { case "$1" in 6) echo custom_field_definitions;; 7) echo customers;;
       echo "    raise exception 'FALTA la migración 0018 (Multimedia del Inbox). Instala primero setup-desde-0018.sql o avísame.';"
       echo "  end if;"
     fi
+    if [ "$FROM" -ge 20 ]; then
+      echo "  if to_regclass('public.attachment_uploads') is null then"
+      echo "    raise exception 'FALTA la migración 0019 (Envío de archivos). Instala primero setup-desde-0019.sql o avísame.';"
+      echo "  end if;"
+    fi
     if [ "$FROM" = "17" ]; then
       echo "  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'channels' and column_name = 'connection_status') then"
       echo "    raise exception 'FALTA la migración 0016 (Conexiones de WhatsApp). Instala primero setup-desde-0016.sql o avísame.';"
