@@ -3,6 +3,7 @@ import { parseWebhook } from '@/lib/meta';
 import { isSocialPayload, parseSocialWebhook } from '@/lib/social';
 import { openSecret } from '@/lib/secrets';
 import { fetchContactName } from './meta-social';
+import { registerAttachments } from './media';
 import type { createAdminClient } from './supabase-admin';
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -25,8 +26,11 @@ export async function processMetaPayload(admin: Admin, payload: unknown, deps: {
     });
     if (r.error) { sum.retry = true; continue; }
     const d = r.data as { ok: boolean; reason?: string };
-    if (d.ok) { sum.messages++; alive.add(m.phoneNumberId); }
-    else {
+    if (d.ok) {
+      sum.messages++; alive.add(m.phoneNumberId);
+      // También si el mensaje ya existía (webhook reintentado): así nunca se pierde un adjunto por un fallo entre pasos.
+      if (m.attachments?.length && !(await registerAttachments(admin, 'whatsapp', m.phoneNumberId, m.externalId, m.attachments))) sum.retry = true;
+    } else {
       sum.ignored++;
       // Diagnóstico: el ID del número que manda Meta no coincide con ningún canal conectado.
       console.warn(JSON.stringify({ msg: 'meta_unknown_channel', phone_number_id: m.phoneNumberId, reason: d.reason }));
@@ -104,6 +108,7 @@ async function processSocialPayload(admin: Admin, payload: unknown, deps: { fetc
     }
     sum.messages++;
     alive.set(`${m.kind}:${m.accountId}`, { kind: m.kind, accountId: m.accountId });
+    if (m.attachments?.length && !(await registerAttachments(admin, m.kind, m.accountId, m.externalId, m.attachments))) sum.retry = true;
     if (d.new_conversation && d.conversation_id) await fillContactName(admin, m.kind, m.accountId, m.thread, d.conversation_id, deps);
   }
   for (const s of statuses) {

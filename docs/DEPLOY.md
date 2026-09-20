@@ -230,3 +230,12 @@ Sigue primero `docs/META-WHATSAPP.md` hasta dejar el canal conectado.
    (No se pierde ninguna conversación ni token; el envío sigue funcionando mientras tanto.)
 5. Conecta Facebook/Instagram y Gmail siguiendo `docs/CONEXIONES.md`.
 6. Para que Gmail se sincronice solo, la tarea programada de `/api/cron/dispatch-events` debe correr **cada minuto** (ver §5).
+
+## Actualizar a Multimedia (migración 0018)
+
+1. Supabase → SQL Editor → **New query** → pega `supabase/setup-desde-0018.sql` → **Run**. Debe terminar con `estado = LISTO`.
+   (Requiere haber instalado antes la 0017.) **No hay variables nuevas.**
+2. Sube el código a GitHub (arrastra las carpetas del ZIP → Commit) y espera el deploy de Vercel.
+3. **Comprueba en Supabase → Storage**: bucket `inbox-media` **privado** y la política «inbox-media: solo el servidor» (ver `docs/MULTIMEDIA.md`).
+4. Los archivos de WhatsApp de los últimos 7 días se descargarán solos en unos minutos (necesitas la tarea programada de §5 corriendo cada minuto).
+5. Prueba: envía una foto y un PDF a tu número de WhatsApp de prueba y ábrelos en el Inbox.

@@ -343,7 +343,8 @@ select t.throws('el texto de un mensaje no se modifica', format('update public.m
 select t.throws('ni su dirección', format('update public.messages set direction = ''inbound'' where id = %L', t.id('m1')), '23514');
 select t.throws('ni el id externo ya asignado', format('update public.messages set external_id = ''otro'' where id = %L', t.id('m1')), '23514');
 select t.throws('los mensajes no se borran', format('delete from public.messages where id = %L', t.id('m1')), '42501');
-select t.throws('ni se vacía la tabla', 'truncate public.messages', '42501');
+select t.throws('ni se vacía la tabla (ahora lo frena también la clave foránea de los adjuntos)', 'truncate public.messages', '0A000');
+select t.ok('...y nadie recibió el permiso de vaciarla', not has_table_privilege('authenticated', 'public.messages', 'TRUNCATE') and not has_table_privilege('anon', 'public.messages', 'TRUNCATE'));
 select t.throws('un mensaje entrante no puede tener estado de envío', format('insert into public.messages (org_id, channel_id, conversation_id, direction, body, status, occurred_at) values (%L, %L, %L, ''inbound'', ''x'', ''sent'', now())', t.id('orgA'), t.id('ch'), t.id('conv_c')), '23514');
 select t.throws('ni uno saliente el estado «recibido»', format('insert into public.messages (org_id, channel_id, conversation_id, direction, body, status, occurred_at) values (%L, %L, %L, ''outbound'', ''x'', ''received'', now())', t.id('orgA'), t.id('ch'), t.id('conv_c')), '23514');
 select t.throws('el mismo id externo no se repite en un canal (índice único)', format('insert into public.messages (org_id, channel_id, conversation_id, direction, body, status, occurred_at, external_id) values (%L, %L, %L, ''inbound'', ''x'', ''received'', now(), ''wamid.C1'')', t.id('orgA'), t.id('ch'), t.id('conv_c')), '23505');

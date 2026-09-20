@@ -1,10 +1,10 @@
-import type { MessageRow } from './types';
+import type { AttachmentRow, MessageRow } from './types';
 
 export type MediaKind = 'image' | 'video' | 'audio' | 'document' | 'sticker' | 'other';
 
 export type ThreadItem =
   | { kind: 'message'; id: string; at: string; direction: 'inbound' | 'outbound'; body: string; status: MessageRow['status']; error: string | null;
-      sentBy: string | null; auto: boolean; template: boolean; media: MediaKind | null }
+      sentBy: string | null; auto: boolean; template: boolean; media: MediaKind | null; attachments: AttachmentRow[] }
   | { kind: 'note'; id: string; at: string; body: string; authorId: string | null }
   | { kind: 'event'; id: string; at: string; text: string };
 
@@ -22,12 +22,32 @@ export function mediaKind(m: Pick<MessageRow, 'kind' | 'meta'>): MediaKind | nul
  * Une mensajes, notas internas y eventos del sistema en una sola línea de tiempo ordenada.
  * Un mensaje saliente sin autor humano se trata como automático (bot / sistema).
  */
-export function buildThread(messages: MessageRow[], notes: NoteInput[], events: EventInput[]): ThreadItem[] {
+/**
+ * El texto de un mensaje con adjuntos: se quita la etiqueta automática («[Imagen]», «[Documento: plano.pdf]», «[Ubicación: …]»,
+ * «[2 adjuntos]») porque el propio adjunto ya se ve; el pie de foto o el texto del cliente se conservan.
+ */
+export function visibleBody(body: string, hasAttachments: boolean): string {
+  if (!hasAttachments) return body;
+  return body
+    .replace(/^\[(Imagen|Video|Audio|Sticker|Archivo|Documento|Ubicación|Contacto compartido|Mención en una historia|Reel|Adjunto|Enlace compartido)(: [^\]]*)?\]\s*/, '')
+    .replace(/^\[\d+ adjuntos\]\s*/, '')
+    .replace(/\n?\[\d+ (adjunto|adjuntos)\]\s*$/, '')
+    .trim();
+}
+
+export function buildThread(messages: MessageRow[], notes: NoteInput[], events: EventInput[], attachments: AttachmentRow[] = []): ThreadItem[] {
+  const byMessage = new Map<string, AttachmentRow[]>();
+  for (const a of attachments) byMessage.set(a.messageId, [...(byMessage.get(a.messageId) ?? []), a]);
   const items: ThreadItem[] = [
-    ...messages.map((m): ThreadItem => ({
-      kind: 'message', id: m.id, at: m.occurredAt, direction: m.direction, body: m.body, status: m.status, error: m.error,
-      sentBy: m.sentBy, auto: m.direction === 'outbound' && !m.sentBy, template: m.kind === 'template', media: mediaKind(m),
-    })),
+    ...messages.map((m): ThreadItem => {
+      const atts = byMessage.get(m.id) ?? [];
+      return {
+        kind: 'message', id: m.id, at: m.occurredAt, direction: m.direction, body: m.body, status: m.status, error: m.error,
+        sentBy: m.sentBy, auto: m.direction === 'outbound' && !m.sentBy, template: m.kind === 'template',
+        media: atts.length > 0 ? null : mediaKind(m),           // con adjuntos reales se dibujan ellos; si no, la tarjeta provisional de antes
+        attachments: atts,
+      };
+    }),
     ...notes.map((n): ThreadItem => ({ kind: 'note', id: n.id, at: n.occurredAt, body: n.summary, authorId: n.createdBy })),
     ...events.map((e): ThreadItem => ({ kind: 'event', id: e.id, at: e.occurredAt, text: e.text })),
   ];

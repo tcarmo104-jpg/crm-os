@@ -263,7 +263,7 @@ describe('Gmail', () => {
     gm.scope = 'openid email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send'; gm.refresh = undefined;
     expect(toUserMessage(await rejects(login()))).toMatch(/acceso permanente/);
     gm.refresh = REFRESH;
-    expect(count(`select count(*) from channels where kind = 'gmail'`)).toBe(0);
+    expect(count(`select count(*) from channels where kind = 'gmail' and org_id = '${org}'`)).toBe(0);
     expect(toUserMessage(await rejects(completeGoogleLogin(a, admin(), { code: 'x', redirectUri: 'x', orgId: org }, { fetchImpl, env: {} as never })))).toMatch(/GOOGLE_CLIENT_ID/);
   });
   it('conecta la cuenta, guarda el acceso sin exponerlo y trae solo los correos relevantes, unidos al cliente por su correo', async () => {

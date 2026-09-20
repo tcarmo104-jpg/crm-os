@@ -4,10 +4,12 @@
  */
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
+import type { AttachmentInput } from './media';
+
 export type SocialKind = 'facebook' | 'instagram';
 export interface SocialMessage {
   kind: SocialKind; accountId: string; thread: string; externalId: string; msgKind: 'text' | 'media' | 'other';
-  body: string; occurredAt: string; meta: Record<string, unknown>;
+  body: string; occurredAt: string; meta: Record<string, unknown>; attachments?: AttachmentInput[];
 }
 export interface SocialStatus { kind: SocialKind; accountId: string; externalId: string; status: 'delivered' | 'read'; occurredAt: string }
 
@@ -29,6 +31,28 @@ const ATTACH_LABEL: Record<string, string> = {
   image: 'Imagen', video: 'Video', audio: 'Audio', file: 'Archivo', location: 'Ubicación', share: 'Enlace compartido',
   story_mention: 'Mención en una historia', ig_reel: 'Reel', reel: 'Reel', template: 'Mensaje', fallback: 'Adjunto',
 };
+
+
+const ATTACH_KIND: Record<string, AttachmentInput['kind']> = { image: 'image', video: 'video', audio: 'audio', file: 'document', location: 'location' };
+/** Adjuntos de Messenger/Instagram en el formato común. El tipo definitivo se confirma al descargar (por el contenido). */
+function toInputs(list: Record<string, unknown>[]): AttachmentInput[] {
+  const out: AttachmentInput[] = [];
+  for (const a of list) {
+    const type = str(a.type, 40) ?? 'fallback';
+    const payload = isObj(a.payload) ? a.payload : {};
+    if (type === 'location') {
+      const c = isObj(payload.coordinates) ? payload.coordinates : {};
+      const lat = Number(c.lat), lng = Number(c.long ?? c.lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) out.push({ kind: 'location', meta: { lat, lng, ...(str(a.title, 120) ? { name: clean(str(a.title, 120)!) } : {}) } });
+      continue;
+    }
+    const url = str(payload.url, 2000);
+    const https = url && /^https:\/\//i.test(url) ? url : null;
+    const kind = ATTACH_KIND[type] ?? (https ? 'file' : 'unsupported');     // historias, reels, enlaces…: se intenta bajar y se decide por el contenido
+    out.push({ kind, source: https ? { url: https } : {}, meta: { channel_type: type, ...(str(a.title, 200) ? { title: clean(str(a.title, 200)!) } : {}) } });
+  }
+  return out;
+}
 
 function normalizeEvent(kind: SocialKind, accountId: string, ev: Record<string, unknown>, out: { messages: SocialMessage[]; statuses: SocialStatus[] }) {
   const sender = isObj(ev.sender) ? digits(ev.sender.id, 6) : null;
@@ -63,7 +87,8 @@ function normalizeEvent(kind: SocialKind, accountId: string, ev: Record<string, 
   });
   if (atts.length > 0) {
     const label = atts.length === 1 ? `[${ATTACH_LABEL[atts[0]!.type] ?? 'Adjunto'}]` : `[${atts.length} adjuntos]`;
-    out.messages.push({ kind, accountId, thread: sender, externalId: mid, msgKind: 'media', body: text ? `${label} ${clean(text)}` : label, occurredAt: at, meta: { attachments: atts } });
+    out.messages.push({ kind, accountId, thread: sender, externalId: mid, msgKind: 'media', body: text ? `${label} ${clean(text)}` : label, occurredAt: at, meta: { attachments: atts },
+      attachments: toInputs(arr(m.attachments).filter(isObj).slice(0, 5)) });
     return;
   }
   if (text) {

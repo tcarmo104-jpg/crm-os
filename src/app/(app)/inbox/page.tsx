@@ -7,7 +7,7 @@ import { INBOX_CONTEXT_COOKIE, contactLabel, inboxHref, parseContextCookie, pars
 import { buildThread } from '@/lib/thread';
 import { describeEvent } from '@/lib/timeline';
 import {
-  getConversation, listChannels, listMessages, listQuickReplies, listTags, listTemplates, markRead, searchConversations, tabCounts, tagsByCustomer,
+  getConversation, listAttachments, listChannels, listMessages, listQuickReplies, listTags, listTemplates, markRead, searchConversations, tabCounts, tagsByCustomer,
 } from '@/repositories/inbox';
 import { loadCustomerContext } from '@/repositories/inbox-context';
 import { getCustomersByIds, timeline } from '@/repositories/customers';
@@ -99,16 +99,18 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
         </div>
       );
     } else {
-      const [messages, events, quick, templates] = await Promise.all([
+      const [messages, events, quick, templates, attachments] = await Promise.all([
         listMessages(db, conversation.id, 300),
         timeline(db, conversation.customerId, 100).catch(() => []),
         canUpdate ? listQuickReplies(db, org.orgId) : Promise.resolve([]),
         canUpdate ? listTemplates(db, org.orgId) : Promise.resolve([]),
+        listAttachments(db, conversation.id).catch(() => []),
       ]);
       const items = buildThread(
         messages,
         ctx.notes.map((n) => ({ id: n.id, occurredAt: n.occurredAt, summary: n.summary, createdBy: n.createdBy })),
         events.filter((e) => SYSTEM_EVENTS.has(e.type)).map((e) => ({ id: e.id, occurredAt: e.occurredAt, text: describeEvent(e, memberName).title })),
+        attachments,
       );
       const channel = channels.find((c) => c.id === conversation.channelId);
       const kindOfConv = channelKind.get(conversation.channelId) ?? 'whatsapp';

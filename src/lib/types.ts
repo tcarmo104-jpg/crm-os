@@ -234,6 +234,11 @@ export interface ConversationRow {
   lastDirection: 'inbound' | 'outbound' | null; needsReply: boolean; unread: boolean; unreadCount: number;
 }
 export type MessageStatus = 'received' | 'queued' | 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+export interface AttachmentRow {
+  id: string; messageId: string; kind: 'image' | 'video' | 'audio' | 'document' | 'sticker' | 'file' | 'location' | 'contact' | 'unsupported';
+  status: 'pending' | 'downloading' | 'stored' | 'failed' | 'expired' | 'blocked' | 'unsupported'; mimeType: string | null; fileName: string | null;
+  fileSize: number | null; width: number | null; height: number | null; isVoice: boolean; errorCode: string | null; meta: Record<string, unknown>;
+}
 export interface MessageRow {
   id: string; direction: 'inbound' | 'outbound'; kind: 'text' | 'template' | 'media' | 'other'; body: string; status: MessageStatus;
   error: string | null; errorCode: string | null; sentBy: string | null; occurredAt: string; meta: Record<string, unknown>;

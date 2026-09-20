@@ -38,6 +38,8 @@ export function verifyChallenge(params: URLSearchParams, rawVerifyToken: string 
 }
 
 // ---------------------------------------------------------------- lectura de eventos
+import type { AttachmentInput } from './media';
+
 export interface InboundMessage {
   phoneNumberId: string;
   thread: string;               // wa_id del contacto (solo dígitos)
@@ -47,6 +49,7 @@ export interface InboundMessage {
   body: string;
   occurredAt: string;           // ISO
   meta: Record<string, unknown>;
+  attachments?: AttachmentInput[];   // archivos / ubicación / contactos del mensaje (formato común)
 }
 export interface StatusUpdate {
   phoneNumberId: string;
@@ -98,16 +101,34 @@ function normalizeMessage(m: Record<string, unknown>, phoneNumberId: string, nam
     const caption = str(obj.caption, 1000);
     const file = type === 'document' ? str(obj.filename, 120) : null;
     const label = `[${MEDIA_LABEL[type]}${file ? `: ${clean(file)}` : ''}]`;
+    const mediaId = str(obj.id, 200);
     return {
       ...base, kind: 'media', body: caption ? `${label} ${clean(caption)}` : label,
-      meta: { type, media_id: str(obj.id, 200), mime_type: str(obj.mime_type, 100) },
+      meta: { type, media_id: mediaId, mime_type: str(obj.mime_type, 100) },
+      attachments: mediaId ? [{
+        kind: type as 'image' | 'video' | 'audio' | 'document' | 'sticker', mime_type: str(obj.mime_type, 100), file_name: file ? clean(file) : null,
+        is_voice: type === 'audio' && obj.voice === true, source: { media_id: mediaId, ...(str(obj.sha256, 64) ? { sha256: str(obj.sha256, 64) } : {}) },
+        meta: type === 'sticker' && obj.animated === true ? { animated: true } : {},
+      }] : [],
     };
   }
   if (type === 'location' && isObj(m.location)) {
     const place = str(m.location.name, 120) ?? str(m.location.address, 200);
-    return { ...base, kind: 'other', body: place ? `[Ubicación: ${clean(place)}]` : '[Ubicación]', meta: { type } };
+    const lat = Number(m.location.latitude), lng = Number(m.location.longitude);
+    return {
+      ...base, kind: 'other', body: place ? `[Ubicación: ${clean(place)}]` : '[Ubicación]', meta: { type },
+      attachments: Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180
+        ? [{ kind: 'location', meta: { lat, lng, ...(place ? { name: clean(place) } : {}), ...(str(m.location.address, 200) ? { address: clean(str(m.location.address, 200)!) } : {}) } }] : [],
+    };
   }
-  if (type === 'contacts') return { ...base, kind: 'other', body: '[Contacto compartido]', meta: { type } };
+  if (type === 'contacts') {
+    const people = arr(m.contacts).filter(isObj).slice(0, 5).map((c) => {
+      const nm = isObj(c.name) ? str(c.name.formatted_name, 120) : null;
+      const ph = arr(c.phones).filter(isObj).map((x) => str(x.phone, 40)).find(Boolean) ?? null;
+      return { kind: 'contact' as const, meta: { ...(nm ? { name: clean(nm) } : {}), ...(ph ? { phone: clean(ph) } : {}) } };
+    });
+    return { ...base, kind: 'other', body: '[Contacto compartido]', meta: { type }, attachments: people };
+  }
   return { ...base, kind: 'other', body: '[Mensaje no compatible]', meta: { type } };
 }
 

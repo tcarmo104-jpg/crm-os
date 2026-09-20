@@ -1,5 +1,6 @@
-import { linkify, groupByDay, STATUS_TEXT, type ThreadItem } from '@/lib/thread';
+import { linkify, groupByDay, STATUS_TEXT, visibleBody, type ThreadItem } from '@/lib/thread';
 import { Ico } from './icons';
+import { MessageMedia } from './MessageMedia';
 import { ThreadScroll } from './ThreadScroll';
 
 const MEDIA_ICON: Record<string, string> = { image: 'image', video: 'video', audio: 'audio', document: 'file', sticker: 'image', other: 'file' };
@@ -43,13 +44,14 @@ export function Thread({
               <article key={it.id} className={cls}>
                 {it.auto ? <header className="ib-bubble-tag"><Ico name="bot" size={13} /> Respuesta automática</header> : null}
                 {it.template ? <header className="ib-bubble-tag">Plantilla</header> : null}
+                {it.attachments.length > 0 ? <MessageMedia items={it.attachments} /> : null}
                 {it.media ? (
                   <div className="ib-media">
                     <span className="ib-media-ico"><Ico name={MEDIA_ICON[it.media] ?? 'file'} size={22} /></span>
                     <span className="ib-media-text"><strong>{MEDIA_NAME[it.media]}</strong><small>Vista previa no disponible todavía</small></span>
                   </div>
                 ) : null}
-                <p className="ib-bubble-text"><Text text={it.body} /></p>
+                {visibleBody(it.body, it.attachments.length > 0) !== '' ? <p className="ib-bubble-text"><Text text={visibleBody(it.body, it.attachments.length > 0)} /></p> : null}
                 <footer>
                   {time.format(new Date(it.at))}
                   {out && !it.auto ? ` · ${nameOf(it.sentBy)}` : ''}

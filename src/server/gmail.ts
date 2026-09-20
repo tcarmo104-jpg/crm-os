@@ -78,3 +78,11 @@ export async function sendGmailReply(i: EmailSend): Promise<SendResult> {
   if (r.kind === 'transient') return { ok: false, definitive: false, message: 'No se pudo confirmar el envío (sin respuesta de Google).' };
   return { ok: false, definitive: true, code: r.code, message: r.state === 'needs_auth' ? 'La conexión con Gmail no tiene permiso para enviar. Vuelve a autorizarla en Configuración → Conexiones.' : r.state === 'token_expired' ? 'La conexión con Gmail requiere autorización nuevamente. Vuelve a autorizarla en Configuración → Conexiones.' : `Gmail rechazó el envío: ${r.detail}` };
 }
+
+/** Contenido de un adjunto (users.messages.attachments.get). Los identificadores de Gmail son hexadecimales / alfanuméricos: se validan antes de salir a la red. */
+export function getGmailAttachment(access: string, messageId: string, attachmentId: string, o: GoogleOpts = {}): Promise<GoogleResult<{ data?: string; size?: number }>> {
+  if (!/^[0-9a-f]{6,32}$/i.test(messageId) || !/^[A-Za-z0-9_-]{5,2000}$/.test(attachmentId)) {
+    return Promise.resolve({ ok: false, kind: 'rejected', state: null, code: 'bad_id', status: 400, detail: 'Identificador de adjunto no válido.' });
+  }
+  return gcall('GET', `${API}/messages/${messageId}/attachments/${encodeURIComponent(attachmentId)}`, { ...o, token: access });
+}

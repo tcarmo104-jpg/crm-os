@@ -5,6 +5,7 @@ export interface GmailMessage { id: string; threadId?: string; labelIds?: string
 export interface ParsedEmail {
   id: string; threadId: string | null; fromEmail: string; fromName: string | null; subject: string; messageId: string | null; references: string | null;
   occurredAt: string; body: string; attachments: number; labels: string[]; bulk: boolean;
+  files: { fileName: string; mime: string; size: number | null; attachmentId: string; inline: boolean }[];
 }
 
 const isStr = (v: unknown): v is string => typeof v === 'string';
@@ -36,9 +37,13 @@ export function decodeHeader(v: string | null): string {
   }).replace(/\s+/g, ' ').trim();
 }
 
-function walk(p: GmailPart | undefined, acc: { plain: string[]; html: string[]; files: number }) {
+function walk(p: GmailPart | undefined, acc: { plain: string[]; html: string[]; files: number; list: ParsedEmail['files'] }) {
   if (!p) return;
-  if (p.filename) acc.files++;
+  if (p.filename) {
+    acc.files++;
+    const disp = (p.headers ?? []).find((h) => isStr(h?.name) && h.name.toLowerCase() === 'content-disposition')?.value ?? '';
+    if (p.body?.attachmentId && acc.list.length < 20) acc.list.push({ fileName: p.filename, mime: p.mimeType ?? 'application/octet-stream', size: typeof p.body.size === 'number' ? p.body.size : null, attachmentId: p.body.attachmentId, inline: /^\s*inline/i.test(disp) });
+  }
   else if (p.mimeType === 'text/plain' && p.body?.data) acc.plain.push(decode(p.body.data));
   else if (p.mimeType === 'text/html' && p.body?.data) acc.html.push(decode(p.body.data));
   for (const c of p.parts ?? []) walk(c, acc);
@@ -59,7 +64,7 @@ export function parseGmailMessage(m: GmailMessage): ParsedEmail | null {
   if (!isStr(m?.id) || !m.payload) return null;
   const from = parseAddress(header(m.payload, 'From'));
   if (!from) return null;
-  const acc = { plain: [] as string[], html: [] as string[], files: 0 };
+  const acc = { plain: [] as string[], html: [] as string[], files: 0, list: [] as ParsedEmail['files'] };
   walk(m.payload, acc);
   const raw = acc.plain.join('\n').trim() || stripHtml(acc.html.join('\n')).replace(/[ \t]+/g, ' ').trim() || (m.snippet ?? '');
   const ms = Number(m.internalDate);
@@ -70,7 +75,7 @@ export function parseGmailMessage(m: GmailMessage): ParsedEmail | null {
     subject: decodeHeader(header(m.payload, 'Subject')).slice(0, 300), messageId: header(m.payload, 'Message-ID')?.trim() ?? null,
     references: header(m.payload, 'References')?.trim().slice(0, 1500) ?? null,
     occurredAt: Number.isFinite(ms) && ms > 0 ? new Date(ms).toISOString() : new Date().toISOString(),
-    body: stripQuoted(raw) || raw.trim(), attachments: acc.files, labels: (m.labelIds ?? []).filter(isStr),
+    body: stripQuoted(raw) || raw.trim(), attachments: acc.files, files: acc.list, labels: (m.labelIds ?? []).filter(isStr),
     bulk: header(m.payload, 'List-Unsubscribe') !== null || auto || ['bulk', 'list', 'junk'].includes(prec),
   };
 }

@@ -445,3 +445,23 @@ La clave de conversación (`thread_key`) acepta ahora un correo además de un id
 - **Pendiente / límites conocidos**: Messenger/Instagram no usan la etiqueta *human agent* (7 días); los adjuntos se anuncian ([Imagen]…) y se
   guarda su enlace (caduca), pero no se descargan; los correos enviados desde Gmail directamente no se importan; la misma persona por dos
   canales distintos son dos clientes hasta que se fusionen (herramienta de Duplicados).
+
+## 22. Multimedia del Inbox (migración 0018)
+
+Tabla `message_attachments` (1 mensaje : N adjuntos; **no** se añadieron columnas a `messages`, cuyo `meta` sigue igual por
+compatibilidad). Guarda tipo, MIME, nombre, tamaño, dimensiones, ruta en Storage, sha256, estado (`pending · downloading · stored ·
+failed · expired · blocked · unsupported`), intentos y origen (`media_id` / enlace / id de Gmail). RLS: se ve si se ve su conversación.
+Nadie escribe desde el navegador: todo pasa por funciones `security definer` que solo llama `service_role`
+(`register_message_attachments`, `claim_attachment`, `finish_attachment`, `due_attachments`, `expire_attachments`).
+
+- **Formato común**: los tres parsers (`meta.ts`, `social.ts`, `gmail.ts`) entregan `AttachmentInput[]`; el Inbox no tiene un componente por
+  proveedor (`MessageMedia`). Los tipos: image · video · audio · document · sticker · file · location · contact · unsupported.
+- **Registro idempotente**: se llama también cuando el mensaje ya existía (webhook reintentado) → no se pierde un adjunto por un fallo entre pasos.
+- **Descarga** (`src/server/media.ts`): reclamo atómico, verificación por contenido (`src/lib/media.ts`: firmas, ejecutables, HTML/SVG, MIME
+  suplantado), tope de 100 MB en streaming, reintentos con espera creciente (6 intentos; WhatsApp: expira a los 7 días), redirecciones de Meta validadas.
+  Se dispara con `after()` tras responder al webhook y por el barrido de `/api/cron/dispatch-events`. Una tarea de fondo **nunca** puede hacer fallar el webhook.
+- **Almacén**: interfaz `MediaStore`; implementación Supabase (bucket privado `inbox-media`, política restrictiva para usuarios/anónimos). Las pruebas usan un almacén en memoria.
+- **Entrega**: `GET /api/media/[id]` → `mediaAccessUrl` consulta con el cliente DEL USUARIO (RLS) y responde 302 a un enlace firmado de 120 s.
+- **Conservación**: 12 meses (`expires_at`); `expire_attachments` devuelve las rutas a borrar.
+- **Interfaz**: el visor ampliado se dibuja en un portal a `body` (por encima de la cabecera); las etiquetas automáticas (`[Imagen]`…) se ocultan si el adjunto se ve.
+- **Pendiente**: envío (fase siguiente), miniaturas, vista previa de PDF, conversión de audio/HEIC. Ver `docs/MULTIMEDIA.md`.

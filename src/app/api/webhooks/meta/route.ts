@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { verifyChallenge, verifySignature } from '@/lib/meta';
 import { createAdminClient } from '@/server/supabase-admin';
 import { handleWebhook } from '@/server/inbound';
+import { createSupabaseMediaStore, sweepAttachments } from '@/server/media';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -48,7 +49,13 @@ export async function POST(req: Request) {
   if (typeof payload !== 'object' || payload === null) return NextResponse.json({ ok: true, ignored: true });
 
   try {
-    const sum = await handleWebhook(createAdminClient(), payload);
+    const admin = createAdminClient();
+    const sum = await handleWebhook(admin, payload);
+    // Descargar los archivos recibidos DESPUÉS de responder a Meta (rápido); lo que no alcance lo toma el barrido periódico.
+    // Una tarea de segundo plano NUNCA debe poder hacer fallar el webhook (Meta reintentaría sin fin): si `after` no está disponible se ignora.
+    try {
+      after(async () => { try { await sweepAttachments(admin, { store: createSupabaseMediaStore(admin) }, 3); } catch (e) { console.error(JSON.stringify({ msg: 'attachments_after_failed', error: e instanceof Error ? e.message : String(e) })); } });
+    } catch { /* fuera de una petición de Next (pruebas): el barrido periódico lo cubre */ }
     return NextResponse.json({ ok: true, messages: sum.messages, statuses: sum.statuses });
   } catch (e) {
     console.error(JSON.stringify({ msg: 'meta_webhook_failed', error: e instanceof Error ? e.message : String(e) }));

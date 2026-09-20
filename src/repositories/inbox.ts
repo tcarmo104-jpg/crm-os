@@ -2,7 +2,7 @@ import type { ServerSupabase } from '@/lib/supabase/server';
 import { sealSecret } from '@/lib/secrets';
 import { unwrap } from '@/lib/errors';
 import { decodeCursor, encodeCursor } from '@/lib/cursor';
-import type { ChannelRow, ConnectionEventRow, ConversationRow, MessageRow, Page, QuickReplyRow, TagColor, TagRow, TemplateRow } from '@/lib/types';
+import type { AttachmentRow, ChannelRow, ConnectionEventRow, ConversationRow, MessageRow, Page, QuickReplyRow, TagColor, TagRow, TemplateRow } from '@/lib/types';
 import { dateFrom, safeSearchText, type InboxQuery } from '@/lib/inbox-view';
 
 const CONV = 'id, channel_id, customer_id, thread_key, contact_name, status, owner_id, last_message_at, last_inbound_at, last_message_preview, last_direction, needs_reply, unread, unread_count';
@@ -50,6 +50,16 @@ export async function listMessages(db: ServerSupabase, conversationId: string, l
     .eq('conversation_id', conversationId).order('occurred_at', { ascending: false }).order('created_at', { ascending: false }).limit(limit)) as unknown as
     { id: string; direction: 'inbound' | 'outbound'; kind: MessageRow['kind']; body: string; status: MessageRow['status']; error: string | null; error_code: string | null; sent_by: string | null; occurred_at: string; meta: Record<string, unknown> | null }[];
   return rows.reverse().map((r) => ({ id: r.id, direction: r.direction, kind: r.kind, body: r.body, status: r.status, error: r.error, errorCode: r.error_code, sentBy: r.sent_by, occurredAt: r.occurred_at, meta: r.meta ?? {} }));
+}
+
+/** Adjuntos de una conversación. La ruta del archivo NO se pide: el navegador solo conoce el id y pasa por la ruta autorizada. */
+export async function listAttachments(db: ServerSupabase, conversationId: string): Promise<AttachmentRow[]> {
+  const rows = unwrap(await db.from('message_attachments').select('id, message_id, kind, status, mime_type, file_name, file_size, width, height, is_voice, error_code, meta, position')
+    .eq('conversation_id', conversationId).order('created_at').order('position').limit(1000)) as unknown as
+    { id: string; message_id: string; kind: AttachmentRow['kind']; status: AttachmentRow['status']; mime_type: string | null; file_name: string | null; file_size: number | null;
+      width: number | null; height: number | null; is_voice: boolean; error_code: string | null; meta: Record<string, unknown> | null }[];
+  return rows.map((r) => ({ id: r.id, messageId: r.message_id, kind: r.kind, status: r.status, mimeType: r.mime_type, fileName: r.file_name, fileSize: r.file_size,
+    width: r.width, height: r.height, isVoice: r.is_voice, errorCode: r.error_code, meta: r.meta ?? {} }));
 }
 
 export async function getMessageOutcome(db: ServerSupabase, id: string): Promise<{ status: string; error: string | null } | null> {

@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { isCheckDue, redact, type ConnectionState } from '@/lib/connections';
 import { GOOGLE_REQUIRED_SCOPES } from '@/lib/social';
 import { inboxBody, parseGmailMessage, shouldSync } from '@/lib/gmail';
+import { kindFromMime } from '@/lib/media';
+import { registerAttachments } from './media';
 import { SecretError, openSecret, sealSecret } from '@/lib/secrets';
 import type { ServerSupabase } from '@/lib/supabase/server';
 import { UserFacingError } from '@/lib/errors';
@@ -344,6 +346,10 @@ export async function syncGmail(admin: Admin, channelId: string, deps: Deps = {}
     if (r.error) { failed = true; continue; }
     const d = r.data as { ok: boolean; deduplicated?: boolean };
     if (d.ok && !d.deduplicated) ingested++; else if (!d.ok) skipped++;
+    if (d.ok && e.files.length > 0) {
+      const items = e.files.map((f) => ({ kind: kindFromMime(f.mime), mime_type: f.mime, file_name: f.fileName, file_size: f.size, source: { gmail_id: e.id, attachment_id: f.attachmentId }, meta: { inline: f.inline } }));
+      if (!(await registerAttachments(admin, 'gmail', ch.external_id, e.id, items))) failed = true;     // no se avanza el historial: se reintenta sin duplicar
+    }
   }
 
   // 3) Avanzar el punto de lectura SOLO si todo salió bien (si no, el próximo barrido lo reintenta sin duplicar nada)

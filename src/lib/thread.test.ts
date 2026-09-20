@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildThread, dayLabel, groupByDay, linkify, listTime, mediaKind } from './thread';
+import { buildThread, dayLabel, groupByDay, linkify, listTime, mediaKind, visibleBody } from './thread';
 import type { MessageRow } from './types';
 
 const msg = (o: Partial<MessageRow> & { id: string; occurredAt: string }): MessageRow => ({
@@ -80,5 +80,24 @@ describe('hora en la lista de conversaciones', () => {
     expect(listTime('2026-09-18T14:05:00Z', 'America/Bogota', now)).toBe('Ayer');
     expect(listTime('2026-09-12T14:05:00Z', 'America/Bogota', now)).toBe('12/09');
     expect(listTime(null, 'America/Bogota', now)).toBe('');
+  });
+});
+
+describe('visibleBody: la etiqueta automática no se repite cuando el adjunto ya se ve', () => {
+  it('quita «[Imagen]», «[Documento: x]», «[Ubicación: x]» y «[Contacto compartido]» solo si hay adjuntos', () => {
+    for (const b of ['[Imagen]', '[Video]', '[Audio]', '[Sticker]', '[Documento: plano.pdf]', '[Ubicación: Oficina]', '[Ubicación]', '[Contacto compartido]', '[Archivo]', '[Mención en una historia]']) {
+      expect(visibleBody(b, true)).toBe(''); expect(visibleBody(b, false)).toBe(b);
+    }
+  });
+  it('conserva el pie de foto del cliente y el texto del correo', () => {
+    expect(visibleBody('[Imagen] Mira esto', true)).toBe('Mira esto');
+    expect(visibleBody('[Documento: plano.pdf] Te lo envío hoy', true)).toBe('Te lo envío hoy');
+    expect(visibleBody('Cotización\n\nAdjunto planos\n[2 adjuntos]', true)).toBe('Cotización\n\nAdjunto planos');
+    expect(visibleBody('Cotización\n\nAdjunto planos\n[1 adjunto]', true)).toBe('Cotización\n\nAdjunto planos');
+    expect(visibleBody('[3 adjuntos] mira', true)).toBe('mira');
+  });
+  it('no toca un texto normal que casualmente contiene corchetes', () => {
+    expect(visibleBody('Ver [Imagen] adjunta abajo', true)).toBe('Ver [Imagen] adjunta abajo');
+    expect(visibleBody('hola', true)).toBe('hola');
   });
 });
