@@ -19,4 +19,17 @@ describe('rutas que se autentican solas (sin sesión de usuario)', () => {
       expect(res.headers.get('location')).toBeNull();
     }
   });
+
+  it('las páginas legales (política de privacidad y eliminación de datos) son PÚBLICAS: Meta y Google las abren sin sesión', async () => {
+    for (const path of ['/privacidad', '/eliminacion-de-datos']) {
+      const res = await updateSession(new NextRequest(`https://crm.test${path}`));
+      expect(res.headers.get('location'), path).toBeNull();
+    }
+  });
+  it('...pero el resto sigue exigiendo sesión (sin ella, al inicio de sesión) y un prefijo parecido no se cuela', async () => {
+    for (const path of ['/inbox', '/settings/connections', '/privacidad-interna', '/eliminacion-de-datos-x/y']) {
+      const res = await updateSession(new NextRequest(`https://crm.test${path}`));
+      expect(res.headers.get('location') ?? '', path).toMatch(/\/login/);
+    }
+  });
 });

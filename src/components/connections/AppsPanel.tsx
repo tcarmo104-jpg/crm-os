@@ -9,7 +9,7 @@ export interface AppState { source: 'app' | 'env' | null; clientId: string | nul
  * «Tu aplicación de Meta / Google»: el Identificador y la Clave secreta se pegan AQUÍ, una sola vez, y el CRM los guarda cifrados y hace el resto
  * (Meta: registra el webhook). Ya no hay que entrar a Vercel. Cada organización puede tener SU propia aplicación.
  */
-export function AppsPanel({ meta, google, origin }: { meta: AppState; google: AppState; origin: string }) {
+export function AppsPanel({ meta, google, origin, verifyToken }: { meta: AppState; google: AppState; origin: string; verifyToken: string | null }) {
   return (
     <div className="cx-apps">
       <section className={`cx-panel ${meta.source === 'app' ? '' : 'cx-panel--todo'}`} aria-labelledby="cx-app-meta">
@@ -34,11 +34,14 @@ export function AppsPanel({ meta, google, origin }: { meta: AppState; google: Ap
           <form action={removeMetaAppAction}><SubmitButton className="cx-btn cx-btn--danger-ghost" pendingLabel="Quitando…">Quitar mi aplicación de Meta</SubmitButton></form>
         ) : null}
         <details className="cx-setup">
-          <summary>Direcciones que Meta pide (solo para Facebook e Instagram)</summary>
-          <p className="cx-hint">WhatsApp no necesita nada más: el webhook lo registra el CRM. Para iniciar sesión con Facebook/Instagram, agrega esta dirección en Meta → tu app → Inicio de sesión con Facebook → «URI de redireccionamiento de OAuth válidos»:</p>
-          <code className="cx-copy">{redirectUri(origin, 'meta')}</code>
-          <p className="cx-hint">Dirección del webhook (ya la configura el CRM):</p>
+          <summary>Si Meta te pide estos datos a mano</summary>
+          <p className="cx-hint"><strong>Normalmente no escribes nada en Meta:</strong> al pulsar «Guardar y conectar» el CRM registra el webhook de WhatsApp, Facebook Messenger e Instagram por ti. Solo si Meta te los pide, copia estos dos datos:</p>
+          <p className="cx-hint">URL de devolución de llamada:</p>
           <code className="cx-copy">{webhookUrl(origin)}</code>
+          <p className="cx-hint">Identificador de verificación (token):</p>
+          {verifyToken ? <code className="cx-copy">{verifyToken}</code> : <p className="cx-muted">Se crea solo cuando guardas tu aplicación.</p>}
+          <p className="cx-hint">Para <strong>iniciar sesión con Facebook o Instagram</strong>, Meta exige registrar una dirección de redirección (es lo único que Meta no permite hacer automáticamente). En Meta → tu app → Inicio de sesión con Facebook → «URI de redireccionamiento de OAuth válidos», agrega:</p>
+          <code className="cx-copy">{redirectUri(origin, 'meta')}</code>
         </details>
       </section>
 

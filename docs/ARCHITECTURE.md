@@ -523,3 +523,6 @@ tiene su propia app. Ahora viven en el CRM, por organización.
   (`POST /{app}/subscriptions`). Google: `verifyGoogleClient` (un canje con código inventado: `invalid_grant` = credenciales correctas, `invalid_client` = mal).
 - Consumidores migrados al resolver: OAuth de Facebook/Instagram/Google, verificación y sincronización de conexiones, descarga de adjuntos de Gmail, envío de correo, diagnóstico y páginas de Conexiones.
 - Límite: las direcciones de redirección de OAuth (Facebook/Instagram y Google) deben registrarse a mano en Meta/Google (no hay API para ello); la pantalla las muestra.
+- **Webhook por canal**: `configureWebhook` registra en la app de Meta los tres objetos que entregan mensajes (`whatsapp_business_account`, `page`, `instagram`, campo `messages`) con la misma
+  dirección y el mismo token. Un canal que la app no tiene se informa aparte; un problema de dirección/token o de credenciales se informa una vez (no se insiste con los demás).
+  El panel muestra a los administradores la dirección y el token por si Meta los pide a mano.

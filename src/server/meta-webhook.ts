@@ -37,22 +37,51 @@ export function judgeSubscription(list: AppSub[], expectedUrl: string | null): {
   return { subscription: 'ok', callbackUrl: url };
 }
 
-export type ConfigureResult = { ok: true } | { ok: false; message: string };
+export type ConfigureResult = { ok: true; registered: string[]; failed: { label: string; message: string }[] } | { ok: false; message: string };
+
+/** Los tres «objetos» de Meta que entregan mensajes a este CRM. Todos van a la MISMA dirección y con el MISMO token de verificación. */
+const WEBHOOK_OBJECTS = [
+  { object: 'whatsapp_business_account', label: 'WhatsApp' },
+  { object: 'page', label: 'Facebook Messenger' },
+  { object: 'instagram', label: 'Instagram' },
+] as const;
+
+type Failure = Extract<Awaited<ReturnType<typeof graphCall>>, { ok: false }>;
+/** Explica en español por qué Meta rechazó el cambio. `fatal` = afecta a todos los canales (dirección/token o credenciales), no tiene sentido seguir. */
+function explainFailure(r: Failure): { message: string; fatal: boolean } {
+  if (r.kind === 'transient') return { message: 'No pudimos comunicarnos con Meta. Inténtalo de nuevo en unos minutos.', fatal: true };
+  const d = `${r.code} ${r.detail}`.toLowerCase();
+  if (/verif|challenge|callback/.test(d) || r.code === '2200') return { fatal: true, message: 'Meta no pudo verificar la dirección de tu CRM. Comprueba que el CRM esté en línea (abierto desde su dirección pública con https://) y vuelve a pulsar «Guardar y conectar».' };
+  if (r.state === 'token_expired' || r.code === '190' || /app secret|signature|invalid app|oauth/.test(d)) return { fatal: true, message: 'Meta no aceptó las credenciales de la app: la Clave secreta debe ser la «Clave secreta de la app» de esa misma app (Configuración de la app → Básica).' };
+  if (r.state === 'needs_auth') return { fatal: false, message: 'Meta indica que falta un permiso para configurar este canal en tu app.' };
+  return { fatal: false, message: `Meta lo rechazó (${redact(r.detail, 120)}).` };
+}
+
 /**
- * Deja configurado el webhook de WhatsApp en la app de Meta (URL + token de verificación + campo «messages»): es lo que antes se hacía a mano
- * en el panel de Meta. Meta verifica la dirección en el momento, así que si el token o el sitio están mal, lo dice aquí.
+ * Deja configurado el webhook en la app de Meta para WhatsApp, Facebook Messenger e Instagram (dirección + token de verificación + campo «messages»):
+ * es lo que antes se hacía a mano en el panel de Meta. Meta verifica la dirección en el momento. Un canal que la app no tiene (por ejemplo, sin
+ * Instagram) se informa aparte y NO impide los demás; un problema de dirección/token/credenciales se informa una sola vez.
  */
 export async function configureWebhook(appId: string, secret: string, callbackUrl: string, verifyToken: string, o: GraphOpts = {}): Promise<ConfigureResult> {
-  const r = await graphCall<{ success?: boolean }>('POST', `${encodeURIComponent(appId)}/subscriptions`, appToken(appId, secret), {
-    ...o, form: { object: 'whatsapp_business_account', callback_url: callbackUrl, verify_token: verifyToken, fields: 'messages' },
-  });
-  if (r.ok) return r.data.success === false ? { ok: false, message: 'Meta no confirmó el cambio. Inténtalo de nuevo.' } : { ok: true };
-  if (r.kind === 'transient') return { ok: false, message: 'No pudimos comunicarnos con Meta. Inténtalo de nuevo en unos minutos.' };
-  const d = `${r.code} ${r.detail}`.toLowerCase();
-  if (/verif|challenge|callback/.test(d) || r.code === '2200') return { ok: false, message: 'Meta no pudo verificar la dirección de tu CRM. Comprueba que META_VERIFY_TOKEN esté guardado en Vercel y que ya hiciste Redeploy después de guardarlo (el sitio debe estar en línea).' };
-  if (r.state === 'token_expired' || r.code === '190' || r.code === '100' || /app secret|signature|invalid app|oauth/.test(d)) return { ok: false, message: 'Meta no aceptó las credenciales de la app: META_APP_SECRET debe ser la «Clave secreta de la app» de esa misma app (Configuración de la app → Básica).' };
-  if (r.state === 'needs_auth') return { ok: false, message: 'Meta indica que falta un permiso para configurar el webhook. Revisa los permisos de tu app.' };
-  return { ok: false, message: `Meta rechazó el cambio (${redact(r.detail, 120)}).` };
+  const registered: string[] = [], failed: { label: string; message: string }[] = [];
+  for (const w of WEBHOOK_OBJECTS) {
+    const r = await graphCall<{ success?: boolean }>('POST', `${encodeURIComponent(appId)}/subscriptions`, appToken(appId, secret), {
+      ...o, form: { object: w.object, callback_url: callbackUrl, verify_token: verifyToken, fields: 'messages' },
+    });
+    if (r.ok) { if (r.data.success === false) failed.push({ label: w.label, message: 'Meta no confirmó el cambio.' }); else registered.push(w.label); continue; }
+    const why = explainFailure(r);
+    if (why.fatal) return { ok: false, message: why.message };
+    failed.push({ label: w.label, message: why.message });
+  }
+  if (registered.length === 0) return { ok: false, message: failed[0]?.message ?? 'Meta no confirmó el cambio. Inténtalo de nuevo.' };
+  return { ok: true, registered, failed };
+}
+
+/** «Listo para WhatsApp, Facebook Messenger e Instagram» / con lo que no se pudo. */
+export function describeConfigured(r: Extract<ConfigureResult, { ok: true }>): string {
+  const list = r.registered.length > 1 ? `${r.registered.slice(0, -1).join(', ')} e ${r.registered.at(-1)}` : r.registered[0]!;
+  const extra = r.failed.length ? ` No se pudo para ${r.failed.map((f) => `${f.label} (${f.message})`).join('; ')}.` : '';
+  return `el webhook quedó configurado en Meta para ${list}.${extra}`;
 }
 
 // ---------------------------------------------------------------------------------------------- reunir lo que se sabe

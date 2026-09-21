@@ -15,8 +15,12 @@ La «clave secreta» y el «token de verificación» son de la **aplicación de 
 2. **Pégalos en el CRM:** **Configuración → Conexiones** → panel **«Tu aplicación de Meta»** → **Guardar y conectar**.
 3. **Conecta tu número:** en la tarjeta de WhatsApp, **Conectar** (ID del número, ID de la cuenta y token).
 
-Al pulsar «Guardar y conectar» el CRM: comprueba con Meta que los datos son de verdad, los guarda en el servidor (nunca se vuelven a mostrar), crea solo el token de verificación y
-**configura el webhook en Meta** (la dirección la detecta sola por donde abriste el CRM). Sin copiar direcciones.
+Al pulsar «Guardar y conectar» el CRM: comprueba con Meta que los datos son de verdad, guarda la clave en el servidor (nunca se vuelve a mostrar), crea solo el token de verificación y
+**configura el webhook en Meta para WhatsApp, Facebook Messenger e Instagram** (la dirección la detecta sola por donde abriste el CRM). Sin copiar direcciones.
+Si tu app no tiene alguno de esos canales, el CRM te lo dice y configura los demás.
+
+**¿Meta te pide «URL de devolución de llamada» e «Identificador de verificación» a mano?** No deberías necesitarlo, pero si te lo pide: en el panel «Tu aplicación de Meta» →
+«Si Meta te pide estos datos a mano» están la dirección y el token exactos para copiar y pegar. Nada de esto va en Vercel.
 
 ## Si algo no llega
 Abre **Configuración → Conexiones → Configurar** (tu número): el panel **«¿Por qué no llegan mis mensajes?»** dice en UNA frase qué falla y qué hacer.

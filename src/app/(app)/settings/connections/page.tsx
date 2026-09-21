@@ -88,7 +88,7 @@ export default async function ConnectionsPage() {
       {!webhookOk ? <Notice kind="error">Falta conectar tu aplicación de Meta al CRM: sin ese paso los mensajes de WhatsApp, Messenger e Instagram no llegan. Hazlo aquí abajo, en «Tu aplicación de Meta»: pegas dos datos y el CRM hace el resto.</Notice> : null}
       {!encryptionEnabled() ? <p className="cx-hint">Los tokens se guardan protegidos por el acceso a la base de datos. Para cifrarlos además, define <code>CONNECTIONS_ENCRYPTION_KEY</code> en el servidor (opcional).</p> : null}
 
-      <AppsPanel meta={{ source: ownMeta ? 'app' : metaApp ? 'env' : null, clientId: ownMeta?.clientId ?? null }} google={{ source: ownGoogle ? 'app' : googleApp ? 'env' : null, clientId: ownGoogle?.clientId ?? null }} origin={origin} />
+      <AppsPanel meta={{ source: ownMeta ? 'app' : metaApp ? 'env' : null, clientId: ownMeta?.clientId ?? null }} google={{ source: ownGoogle ? 'app' : googleApp ? 'env' : null, clientId: ownGoogle?.clientId ?? null }} origin={origin} verifyToken={metaApp?.verifyToken ?? null} />
 
       <div className="cx-grid">
         {PROVIDERS.map((p) => {

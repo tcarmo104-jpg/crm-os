@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { appSubscriptions, configureReceptionWebhook, configureWebhook, connectMetaApp, gatherReceptionFacts, judgeSubscription, tokenInfo } from './meta-webhook';
+import { appSubscriptions, configureReceptionWebhook, configureWebhook, connectMetaApp, describeConfigured, gatherReceptionFacts, judgeSubscription, tokenInfo } from './meta-webhook';
 
 interface Call { url: string; method: string; auth: string | null; body: string }
 function fake(handler: (c: Call) => { status?: number; body: unknown } | 'network') {
@@ -53,24 +53,49 @@ describe('qué webhooks tiene Meta configurados', () => {
 });
 
 describe('configurar el webhook en Meta automáticamente', () => {
-  it('envía objeto, dirección, token de verificación y campo «messages» en el CUERPO (nunca en la dirección)', async () => {
+  const objectOf = (c: Call) => new URLSearchParams(c.body).get('object');
+  it('registra WhatsApp, Facebook Messenger e Instagram con la MISMA dirección y el MISMO token, en el cuerpo (nunca en la dirección)', async () => {
     const f = fake(() => ({ body: { success: true } }));
-    expect(await configureWebhook(APP, SECRET, URL_OK, VERIFY, { fetchImpl: f.fetchImpl })).toEqual({ ok: true });
-    const c = f.calls[0]!; const b = new URLSearchParams(c.body);
-    expect(c.method).toBe('POST'); expect(path(c)).toBe(`${APP}/subscriptions`); expect(c.auth).toBe(`Bearer ${APP}|${SECRET}`);
-    expect(b.get('object')).toBe('whatsapp_business_account'); expect(b.get('callback_url')).toBe(URL_OK); expect(b.get('verify_token')).toBe(VERIFY); expect(b.get('fields')).toBe('messages');
-    expect(c.url).not.toContain(VERIFY); expect(c.url).not.toContain(SECRET);
+    expect(await configureWebhook(APP, SECRET, URL_OK, VERIFY, { fetchImpl: f.fetchImpl })).toEqual({ ok: true, registered: ['WhatsApp', 'Facebook Messenger', 'Instagram'], failed: [] });
+    expect(f.calls.map(objectOf)).toEqual(['whatsapp_business_account', 'page', 'instagram']);
+    for (const c of f.calls) {
+      const b = new URLSearchParams(c.body);
+      expect(c.method).toBe('POST'); expect(path(c)).toBe(`${APP}/subscriptions`); expect(c.auth).toBe(`Bearer ${APP}|${SECRET}`);
+      expect(b.get('callback_url')).toBe(URL_OK); expect(b.get('verify_token')).toBe(VERIFY); expect(b.get('fields')).toBe('messages');
+      expect(c.url).not.toContain(VERIFY); expect(c.url).not.toContain(SECRET);
+    }
   });
-  it('cada fallo se explica en español y dice qué revisar', async () => {
-    const run = async (status: number, err: Record<string, unknown>) => configureWebhook(APP, SECRET, URL_OK, VERIFY, { fetchImpl: fake(() => ({ status, body: { error: err } })).fetchImpl });
-    const ver = await run(400, { code: 2200, message: 'Callback verification failed with the following errors: HTTP Status Code = 403' });
-    expect(ver).toMatchObject({ ok: false }); expect((ver as { message: string }).message).toMatch(/META_VERIFY_TOKEN.*Redeploy/);
-    const sig = await run(400, { code: 190, message: 'Invalid OAuth access token signature.' });
-    expect((sig as { message: string }).message).toMatch(/META_APP_SECRET debe ser la «Clave secreta de la app»/);
-    expect((await run(403, { code: 200, message: 'permission' }) as { message: string }).message).toMatch(/permiso/);
-    expect((await run(400, { code: 1, message: `raro ${TOKEN}` }) as { message: string }).message).not.toContain(TOKEN);
-    expect(await configureWebhook(APP, SECRET, URL_OK, VERIFY, { fetchImpl: fake(() => 'network').fetchImpl })).toMatchObject({ ok: false, message: expect.stringMatching(/No pudimos comunicarnos con Meta/) });
-    expect(await configureWebhook(APP, SECRET, URL_OK, VERIFY, { fetchImpl: fake(() => ({ body: { success: false } })).fetchImpl })).toMatchObject({ ok: false });
+  it('un canal que la app no tiene NO impide los demás: se informa aparte', async () => {
+    const f = fake((c) => objectOf(c) === 'instagram' ? { status: 400, body: { error: { code: 100, message: 'Instagram product not added' } } } : { body: { success: true } });
+    const r = await configureWebhook(APP, SECRET, URL_OK, VERIFY, { fetchImpl: f.fetchImpl });
+    expect(r).toMatchObject({ ok: true, registered: ['WhatsApp', 'Facebook Messenger'] });
+    expect((r as { failed: { label: string }[] }).failed.map((x) => x.label)).toEqual(['Instagram']);
+    expect(f.calls).toHaveLength(3);
+    expect(describeConfigured(r as never)).toMatch(/configurado en Meta para WhatsApp e? ?Facebook Messenger\. No se pudo para Instagram/);
+  });
+  it('si TODOS fallan por un motivo propio del canal, es un error con el primer motivo', async () => {
+    const f = fake(() => ({ status: 400, body: { error: { code: 100, message: 'not available' } } }));
+    expect(await configureWebhook(APP, SECRET, URL_OK, VERIFY, { fetchImpl: f.fetchImpl })).toMatchObject({ ok: false, message: expect.stringMatching(/Meta lo rechazó/) });
+  });
+  it('un problema de dirección/token o de credenciales se informa UNA vez y no se insiste con los demás canales', async () => {
+    const ver = fake(() => ({ status: 400, body: { error: { code: 2200, message: 'Callback verification failed with the following errors: HTTP Status Code = 403' } } }));
+    const r1 = await configureWebhook(APP, SECRET, URL_OK, VERIFY, { fetchImpl: ver.fetchImpl });
+    expect(r1).toMatchObject({ ok: false }); expect((r1 as { message: string }).message).toMatch(/Meta no pudo verificar la dirección de tu CRM/); expect(ver.calls).toHaveLength(1);
+    const sig = fake(() => ({ status: 400, body: { error: { code: 190, message: 'Invalid OAuth access token signature.' } } }));
+    const r2 = await configureWebhook(APP, SECRET, URL_OK, VERIFY, { fetchImpl: sig.fetchImpl });
+    expect((r2 as { message: string }).message).toMatch(/Clave secreta debe ser la «Clave secreta de la app»/); expect(sig.calls).toHaveLength(1);
+    const net = fake(() => 'network');
+    expect(await configureWebhook(APP, SECRET, URL_OK, VERIFY, { fetchImpl: net.fetchImpl })).toMatchObject({ ok: false, message: expect.stringMatching(/No pudimos comunicarnos con Meta/) });
+  });
+  it('los mensajes de error no dejan ver el token ni le hablan de Vercel o de variables', async () => {
+    const r = await configureWebhook(APP, SECRET, URL_OK, VERIFY, { fetchImpl: fake(() => ({ status: 400, body: { error: { code: 1, message: `raro ${TOKEN}` } } })).fetchImpl });
+    expect((r as { message: string }).message).not.toContain(TOKEN);
+    const ver = await configureWebhook(APP, SECRET, URL_OK, VERIFY, { fetchImpl: fake(() => ({ status: 400, body: { error: { code: 2200, message: 'verification' } } })).fetchImpl });
+    expect((ver as { message: string }).message).not.toMatch(/Vercel|Redeploy|META_[A-Z_]+/);
+  });
+  it('describe el resultado en español', () => {
+    expect(describeConfigured({ ok: true, registered: ['WhatsApp'], failed: [] })).toBe('el webhook quedó configurado en Meta para WhatsApp.');
+    expect(describeConfigured({ ok: true, registered: ['WhatsApp', 'Facebook Messenger', 'Instagram'], failed: [] })).toBe('el webhook quedó configurado en Meta para WhatsApp, Facebook Messenger e Instagram.');
   });
 });
 
@@ -117,7 +142,7 @@ const A = { channelId: 'c1', orgId: 'o1', origin: 'https://crm.test' };
 describe('el botón «Configurar el webhook automáticamente»', () => {
   it('con todo en orden: averigua la app por el token y deja el webhook configurado', async () => {
     const f = routes();
-    expect(await configureReceptionWebhook(fakeAdmin(), A, { env: ENV(), fetchImpl: f.fetchImpl })).toEqual({ ok: true });
+    expect(await configureReceptionWebhook(fakeAdmin(), A, { env: ENV(), fetchImpl: f.fetchImpl })).toMatchObject({ ok: true, registered: ['WhatsApp', 'Facebook Messenger', 'Instagram'] });
     const post = f.calls.find((c) => c.method === 'POST')!;
     expect(new URLSearchParams(post.body).get('callback_url')).toBe(URL_OK); expect(new URLSearchParams(post.body).get('verify_token')).toBe(VERIFY);
   });

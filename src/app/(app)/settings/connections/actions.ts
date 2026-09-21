@@ -10,7 +10,7 @@ import { can } from '@/lib/session';
 import * as repo from '@/repositories/inbox';
 import { connectMetaSelection, connectWhatsApp, resolveManagedChannel, syncGmail, verifyChannel } from '@/server/connections';
 import { verifyGoogleClient } from '@/server/gmail';
-import { configureReceptionWebhook, connectMetaApp } from '@/server/meta-webhook';
+import { configureReceptionWebhook, connectMetaApp, describeConfigured } from '@/server/meta-webhook';
 import { serverOrigin } from '@/server/origin';
 import { removeProviderApp, saveProviderApp } from '@/server/provider-apps';
 import { createAdminClient } from '@/server/supabase-admin';
@@ -137,7 +137,7 @@ export async function configureWebhookAction(fd: FormData) {
     const r = await configureReceptionWebhook(admin, { channelId: id, orgId: ctx.org.orgId, origin: await serverOrigin() });
     if (!r.ok) return { kind: 'error' as const, message: r.message };
     await verifyChannel(admin, id);                       // de paso, vuelve a suscribir la cuenta de WhatsApp Business
-    return 'Listo: el webhook quedó configurado en Meta. Ahora responde el mensaje de prueba desde tu celular: debe aparecer en el Inbox.';
+    return `Listo: ${describeConfigured(r)} Ahora responde el mensaje de prueba desde tu celular: debe aparecer en el Inbox.`;
   });
 }
 
@@ -149,7 +149,7 @@ export async function saveMetaAppAction(fd: FormData) {
     if (!r.ok) return { kind: 'error' as const, message: r.message };
     const name = r.appName ? `«${r.appName}»` : 'de Meta';
     return r.webhook.ok
-      ? `Tu aplicación ${name} quedó conectada y el webhook configurado en Meta. Ahora conecta tu número de WhatsApp, o responde el mensaje de prueba desde tu celular.`
+      ? `Tu aplicación ${name} quedó conectada: ${describeConfigured(r.webhook)} Ahora conecta tus canales, o responde el mensaje de prueba desde tu celular.`
       : { kind: 'error' as const, message: `Guardamos tu aplicación ${name}, pero no pudimos configurar el webhook: ${r.webhook.message}` };
   });
 }
