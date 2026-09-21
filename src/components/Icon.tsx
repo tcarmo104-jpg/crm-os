@@ -1,7 +1,8 @@
 import type { IconName } from '@/lib/nav';
+import { SHAPES, STROKE } from './icon-shapes';
 
 // Trazos simples en cuadrícula 24×24. Varias rutas se separan con "|".
-const PATHS: Record<IconName, string> = {
+export const SHELL_PATHS: Record<IconName, string> = {
   home: 'M3 11l9-8 9 8|M5 10v10h5v-6h4v6h5V10',
   users: 'M16 19v-1a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v1|M10 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6|M20 19v-1a3 3 0 0 0-2-2.8|M16 5.2a3 3 0 0 1 0 5.6',
   user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8|M4 21a8 8 0 0 1 16 0',
@@ -32,9 +33,14 @@ const PATHS: Record<IconName, string> = {
   plus: 'M12 5v14|M5 12h14',
   copy: 'M9 9h11v11H9z|M5 15V4h11',
   menu: 'M4 6h16|M4 12h16|M4 18h16',
+  search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14|M20 20l-4-4',
+  help: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18|M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6|M12 17v.01',
 };
 
-export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
+/** Un solo componente de iconos. Si el nombre está en `SHAPES` se dibuja esa forma; si no, la del menú. Nombre desconocido: no dibuja nada. */
+export function Icon({ name, size = 18 }: { name: IconName | (string & {}); size?: number }) {
+  const shape = SHAPES[name];
+  const path = (SHELL_PATHS as Record<string, string | undefined>)[name];
   return (
     <svg
       width={size}
@@ -42,15 +48,13 @@ export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.7}
+      strokeWidth={STROKE}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
       focusable="false"
     >
-      {PATHS[name].split('|').map((d, i) => (
-        <path key={i} d={d} />
-      ))}
+      {shape ?? path?.split('|').map((d, i) => <path key={i} d={d} />)}
     </svg>
   );
 }

@@ -526,3 +526,12 @@ tiene su propia app. Ahora viven en el CRM, por organización.
 - **Webhook por canal**: `configureWebhook` registra en la app de Meta los tres objetos que entregan mensajes (`whatsapp_business_account`, `page`, `instagram`, campo `messages`) con la misma
   dirección y el mismo token. Un canal que la app no tiene se informa aparte; un problema de dirección/token o de credenciales se informa una vez (no se insiste con los demás).
   El panel muestra a los administradores la dirección y el token por si Meta los pide a mano.
+
+## 27. Sistema de diseño único (rediseño, fase 1)
+
+Auditoría: el CRM tenía DOS identidades (menú verde bosque con acento ámbar, y tres módulos —Inbox, Oportunidades, Conexiones— con su propia paleta índigo y su propio modo oscuro), 164 colores hex
+distintos, ~14 módulos «Fase N» a la vista y una barra superior sin contexto. Ahora: `globals.css` es la única fuente de verdad (ver `docs/DESIGN-SYSTEM.md`); los módulos usan alias; el modo oscuro sale de los tokens.
+Menú regrupado (`nav.ts`): Principal · Comercial · Configuración · Próximamente (plegado). Barra superior con migas (`Breadcrumb`) y búsqueda global (`GlobalSearch`).
+Solo cambia lo visual: ninguna lógica, API, base de datos ni integración.
+
+**Rediseño, fase 2**: portada «Hoy» con jerarquía (`today.ts`), estados vacíos y de carga globales, tablas con enlaces de marca, iconografía única (`icon-shapes.tsx`, peso 1.75).
