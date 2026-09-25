@@ -12,11 +12,20 @@ export async function logActivity(
   })) as string;
 }
 
-export async function listActivities(db: ServerSupabase, p: { customerId?: string; opportunityId?: string; limit?: number }): Promise<ActivityRow[]> {
+export interface ActivityFilters {
+  orgId?: string; customerId?: string; opportunityId?: string; type?: string; createdBy?: string; q?: string; from?: string; to?: string; limit?: number;
+}
+export async function listActivities(db: ServerSupabase, p: ActivityFilters): Promise<ActivityRow[]> {
   let q = db.from('activities').select('id, customer_id, opportunity_id, type, direction, summary, occurred_at, created_by');
+  if (p.orgId) q = q.eq('org_id', p.orgId);
   if (p.customerId) q = q.eq('customer_id', p.customerId);
   if (p.opportunityId) q = q.eq('opportunity_id', p.opportunityId);
-  const rows = unwrap(await q.order('occurred_at', { ascending: false }).order('id', { ascending: false }).limit(p.limit ?? 50)) as
+  if (p.type) q = q.eq('type', p.type);
+  if (p.createdBy) q = q.eq('created_by', p.createdBy);
+  if (p.from) q = q.gte('occurred_at', p.from);
+  if (p.to) q = q.lte('occurred_at', p.to);
+  if (p.q && p.q.trim()) q = q.ilike('summary', `%${p.q.trim().replace(/[%_,]/g, '')}%`);
+  const rows = unwrap(await q.order('occurred_at', { ascending: false }).order('id', { ascending: false }).limit(Math.min(p.limit ?? 50, 300))) as
     { id: string; customer_id: string; opportunity_id: string | null; type: string; direction: string | null; summary: string; occurred_at: string; created_by: string | null }[];
   return rows.map((r) => ({
     id: r.id, customerId: r.customer_id, opportunityId: r.opportunity_id, type: r.type, direction: r.direction,

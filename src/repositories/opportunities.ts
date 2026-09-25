@@ -62,3 +62,10 @@ export async function listTransitions(db: ServerSupabase, entityType: 'lead' | '
     actorId: r.actor_id, source: r.source, reason: r.reason, occurredAt: r.occurred_at,
   }));
 }
+
+/** Datos mínimos de oportunidades por id (para mostrar el título vinculado en Tareas/Actividades, sin cargar todo). */
+export async function getOpportunitiesByIds(db: ServerSupabase, ids: string[]): Promise<{ id: string; title: string; customerId: string }[]> {
+  if (ids.length === 0) return [];
+  const rows = unwrap(await db.from('opportunities').select('id, title, customer_id').in('id', ids)) as unknown as { id: string; title: string; customer_id: string }[];
+  return rows.map((r) => ({ id: r.id, title: r.title, customerId: r.customer_id }));
+}

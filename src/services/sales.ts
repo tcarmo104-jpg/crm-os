@@ -3,6 +3,7 @@ import type { ServerSupabase } from '@/lib/supabase/server';
 import { UserFacingError } from '@/lib/errors';
 import { parseAmount } from '@/lib/money';
 import { zonedLocalToUtcIso } from '@/lib/time';
+import { DIRECTIONAL_TYPES } from '@/lib/activities';
 import { needsReason } from '@/lib/leads';
 import * as opps from '@/repositories/opportunities';
 import * as tasks from '@/repositories/tasks';
@@ -55,7 +56,7 @@ export async function updateOpportunity(db: ServerSupabase, id: string, input: u
 }
 
 // ---------------------------------------------------------------- tareas
-const TASK_TYPES = ['call', 'whatsapp', 'email', 'meeting', 'follow_up', 'other'] as const;
+import { TASK_TYPES } from '@/lib/tasks';
 const newTaskSchema = z.object({
   title: z.string().trim().min(1, 'Escribe qué hay que hacer.').max(160, 'El título es demasiado largo.'),
   type: z.enum(TASK_TYPES).default('follow_up'),
@@ -74,29 +75,35 @@ export async function createTask(db: ServerSupabase, orgId: string, timezone: st
 }
 
 export async function editTask(db: ServerSupabase, id: string, timezone: string, input: unknown) {
-  const d = parse(newTaskSchema.pick({ title: true, type: true, priority: true, due: true, description: true }), input);
+  const d = parse(newTaskSchema.pick({ title: true, type: true, priority: true, due: true, description: true, assigneeId: true }), input);
   let due_at: string | null = null;
   if (d.due) {
     due_at = zonedLocalToUtcIso(d.due, timezone);
     if (!due_at) throw new UserFacingError('La fecha y hora no son válidas.');
   }
-  await tasks.updateTask(db, id, { title: d.title, type: d.type, priority: d.priority, due_at, description: d.description ?? null });
+  await tasks.updateTask(db, id, { title: d.title, type: d.type, priority: d.priority, due_at, description: d.description ?? null, ...(d.assigneeId ? { assignee_id: d.assigneeId } : {}) });
 }
 
 // ---------------------------------------------------------------- actividades
 const activitySchema = z.object({
   customerId: z.string().uuid(),
-  type: z.enum(['call', 'whatsapp', 'email', 'meeting', 'note'], { errorMap: () => ({ message: 'Selecciona el tipo de actividad.' }) }),
+  type: z.enum(['call', 'whatsapp', 'email', 'meeting', 'visit', 'note'], { errorMap: () => ({ message: 'Selecciona el tipo de actividad.' }) }),
   direction: z.preprocess(blank, z.enum(['inbound', 'outbound']).optional()),
   summary: z.string().trim().min(1, 'Cuenta brevemente qué pasó.').max(2000, 'El resumen es demasiado largo.'),
-  opportunityId: optUuid,
+  opportunityId: optUuid, occurredAt: optStr(30),
 });
-export async function logActivity(db: ServerSupabase, input: unknown) {
+export async function logActivity(db: ServerSupabase, input: unknown, timezone = 'UTC') {
   const d = parse(activitySchema, input);
-  if (['call', 'whatsapp', 'email'].includes(d.type) && !d.direction) {
+  if (DIRECTIONAL_TYPES.includes(d.type as typeof DIRECTIONAL_TYPES[number]) && !d.direction) {
     throw new UserFacingError('Indica si fue entrante o saliente.');
   }
-  return activities.logActivity(db, { ...d, direction: d.type === 'note' || d.type === 'meeting' ? undefined : d.direction });
+  let occurredAt: string | undefined;
+  if (d.occurredAt) {
+    const iso = zonedLocalToUtcIso(d.occurredAt, timezone);
+    if (!iso) throw new UserFacingError('La fecha y hora no son válidas.');
+    occurredAt = iso;
+  }
+  return activities.logActivity(db, { ...d, direction: DIRECTIONAL_TYPES.includes(d.type as typeof DIRECTIONAL_TYPES[number]) ? d.direction : undefined, occurredAt });
 }
 
 // ---------------------------------------------------------------- leads

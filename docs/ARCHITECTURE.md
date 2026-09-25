@@ -535,3 +535,10 @@ Menú regrupado (`nav.ts`): Principal · Comercial · Configuración · Próxima
 Solo cambia lo visual: ninguna lógica, API, base de datos ni integración.
 
 **Rediseño, fase 2**: portada «Hoy» con jerarquía (`today.ts`), estados vacíos y de carga globales, tablas con enlaces de marca, iconografía única (`icon-shapes.tsx`, peso 1.75).
+
+## 28. Tareas y Actividades (migración 0023) — ver docs/TAREAS-ACTIVIDADES.md
+
+Estado `in_progress` añadido a `tasks` (con `start_task`), tipo `visit` añadido a `tasks` y `activities`. Todo aditivo.
+Página nueva `/activities` (módulo propio, antes solo embebido en Oportunidades/Clientes). `EditTaskModal` conecta por fin a la
+pantalla el servicio `editTask`, que ya existía sin usarse. `Modal`/`CloseOnSuccess` (en `ui.tsx`) y `FilterSelect`/`SearchInput`/
+`DateFilter` (en `filters.tsx`) son primitivos nuevos, genéricos y reutilizables por cualquier módulo futuro.

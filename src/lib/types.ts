@@ -174,7 +174,7 @@ export interface TransitionRow {
   actorId: string | null; source: string; reason: string | null; occurredAt: string;
 }
 
-export type TaskStatus = 'open' | 'done' | 'cancelled';
+export type TaskStatus = 'open' | 'in_progress' | 'done' | 'cancelled';
 export interface TaskRow {
   id: string; title: string; description: string | null; type: string; priority: string; dueAt: string | null; status: TaskStatus;
   assigneeId: string | null; customerId: string | null; opportunityId: string | null; outcome: string | null;

@@ -1,7 +1,7 @@
 export type IconName =
   | 'home' | 'users' | 'user' | 'target' | 'file' | 'cash' | 'inbox' | 'chat' | 'mail' | 'check'
   | 'bolt' | 'repeat' | 'sparkle' | 'phone' | 'chart' | 'funnel' | 'box' | 'tool' | 'shield'
-  | 'plug' | 'gear' | 'team' | 'chevron' | 'sidebar' | 'sun' | 'moon' | 'logout' | 'plus' | 'copy' | 'menu' | 'search' | 'help';
+  | 'plug' | 'gear' | 'team' | 'chevron' | 'sidebar' | 'sun' | 'moon' | 'logout' | 'plus' | 'copy' | 'menu' | 'search' | 'help' | 'pin' | 'x';
 
 export interface NavItem {
   key: string;
@@ -23,6 +23,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { key: 'inbox', label: 'Inbox', icon: 'inbox', href: '/inbox' },
       { key: 'opportunities', label: 'Oportunidades', icon: 'target', href: '/opportunities' },
       { key: 'tasks', label: 'Tareas', icon: 'check', href: '/tasks' },
+      { key: 'activities', label: 'Actividades', icon: 'pin', href: '/activities' },
     ],
   },
   {
