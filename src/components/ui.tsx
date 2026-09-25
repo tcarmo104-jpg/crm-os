@@ -1,7 +1,7 @@
 'use client';
 
 import { useFormStatus } from 'react-dom';
-import { useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { Icon } from './Icon';
 
 export function SubmitButton({
@@ -66,4 +66,47 @@ export function CopyField({ value, label }: { value: string; label: string }) {
       </div>
     </div>
   );
+}
+
+const ModalCloseContext = createContext<(() => void) | null>(null);
+
+/**
+ * Modal compacto y accesible (nativo `<dialog>`: Esc y clic afuera cierran solos, y bloquea el fondo).
+ * `trigger` es lo que abre el modal (un botón, normalmente); los hijos son el contenido.
+ */
+export function Modal({ trigger, title, children, wide = false }: { trigger: ReactNode; title: string; children: ReactNode; wide?: boolean }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const close = () => ref.current?.close();
+  return (
+    <>
+      <span onClick={() => ref.current?.showModal()}>{trigger}</span>
+      <dialog ref={ref} className={`modal${wide ? ' modal--wide' : ''}`} aria-labelledby="modal-title" onClick={(e) => { if (e.target === ref.current) close(); }}>
+        <div className="modal-head">
+          <h2 id="modal-title">{title}</h2>
+          <button type="button" className="icon-btn" aria-label="Cerrar" onClick={close}><Icon name="x" size={16} /></button>
+        </div>
+        {/* El contexto, no el foco del navegador, es lo que le dice al formulario de adentro cómo cerrar este modal (el foco no es confiable mientras se envía). */}
+        <div className="modal-body"><ModalCloseContext.Provider value={close}>{children}</ModalCloseContext.Provider></div>
+      </dialog>
+    </>
+  );
+}
+
+function useCloseOnSuccessInternal(ok: boolean | undefined) {
+  const close = useContext(ModalCloseContext);
+  const seen = useRef(false);
+  useEffect(() => {
+    if (ok && !seen.current) { seen.current = true; close?.(); }
+    if (!ok) seen.current = false;
+  }, [ok, close]);
+}
+
+/**
+ * Cierra el <Modal> que lo contiene cuando la acción del formulario terminó bien. IMPORTANTE: colócalo DENTRO del
+ * formulario (como cualquier otro elemento hijo), nunca en el componente que arma el <Modal> — el contexto del
+ * modal solo llega a lo que se renderiza como su hijo, no al componente que lo construye.
+ */
+export function CloseOnSuccess({ ok }: { ok: boolean | undefined }) {
+  useCloseOnSuccessInternal(ok);
+  return null;
 }

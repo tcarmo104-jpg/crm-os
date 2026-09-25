@@ -1,51 +1,90 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { can, getSession } from '@/lib/session';
 import { readFlash } from '@/lib/flash';
-import { BUCKET_LABEL, groupTasks, PRIORITY_LABEL, TASK_TYPE_LABEL } from '@/lib/tasks';
+import { BUCKET_LABEL, buildTaskColumns, groupTasks, isOverdue, PRIORITY_LABEL, TASK_TYPE_LABEL, TASK_TYPES, type TaskStatus } from '@/lib/tasks';
 import { listTasks } from '@/repositories/tasks';
-import { getCustomersByIds } from '@/repositories/customers';
+import { getCustomersByIds, listCustomers } from '@/repositories/customers';
+import { getOpportunitiesByIds, listOpportunities } from '@/repositories/opportunities';
 import { listMembers } from '@/repositories/members';
-import { ConfirmButton, Notice } from '@/components/ui';
-import { NewTaskForm } from '@/components/sales-forms';
-import { cancelTaskAction, completeTaskAction, reopenTaskAction } from './actions';
+import { Notice } from '@/components/ui';
+import { FilterSelect, SearchInput } from '@/components/filters';
+import { NewTaskModal, type Opt, type OppOpt } from '@/components/tasks/TaskModals';
+import { TaskCard } from '@/components/tasks/TaskCard';
 
 export const metadata: Metadata = { title: 'Tareas' };
 
-export default async function TasksPage({ searchParams }: { searchParams: Promise<{ view?: string; status?: string }> }) {
+type Params = { view?: string; estado?: string; vista?: string; tipo?: string; prioridad?: string; responsable?: string; q?: string };
+
+export default async function TasksPage({ searchParams }: { searchParams: Promise<Params> }) {
   const sp = await searchParams;
   const session = (await getSession())!;
   const org = session.active!;
   const db = await createClient();
+  if (!can(session, 'tasks:read')) return <><header className="page-head"><h1>Tareas</h1></header><Notice kind="error">No tienes acceso a este módulo.</Notice></>;
 
   const seesOthers = session.permissions['tasks:read'] === 'org' || session.permissions['tasks:read'] === 'team';
   const view = sp.view === 'all' && seesOthers ? 'all' : 'mine';
-  const status = sp.status === 'done' ? 'done' : 'open';
+  const board = sp.vista === 'tablero';
+  const estado = board ? '' : (['in_progress', 'done', 'cancelled', 'todas'].includes(sp.estado ?? '') ? sp.estado! : '');
+  const type = TASK_TYPES.includes((sp.tipo ?? '') as (typeof TASK_TYPES)[number]) ? sp.tipo : undefined;
+  const priority = ['low', 'normal', 'high'].includes(sp.prioridad ?? '') ? sp.prioridad : undefined;
+  const q = (sp.q ?? '').trim() || undefined;
 
-  const [tasks, members, flash] = await Promise.all([
-    can(session, 'tasks:read')
-      ? listTasks(db, { orgId: org.orgId, status, assigneeId: view === 'mine' ? session.user.id : undefined, limit: 300 })
-      : Promise.resolve([]),
+  const statuses: TaskStatus[] | undefined = board || estado === 'todas' ? ['open', 'in_progress', 'done', 'cancelled']
+    : estado === '' ? ['open', 'in_progress'] : undefined;
+  const status = statuses ? undefined : (estado as TaskStatus);
+
+  const [tasksRaw, members, flash, custOptions, oppOptions] = await Promise.all([
+    listTasks(db, {
+      orgId: org.orgId, status, statuses, assigneeId: view === 'mine' ? session.user.id : (sp.responsable && sp.responsable !== 'sin_asignar' ? sp.responsable : undefined),
+      unassigned: view === 'all' && sp.responsable === 'sin_asignar', type, priority, q, limit: 500,
+    }),
     listMembers(db, org.orgId),
     readFlash(),
+    can(session, 'customers:read') ? listCustomers(db, { orgId: org.orgId, userId: session.user.id, owner: 'all', limit: 400 }) : Promise.resolve({ items: [], nextCursor: null }),
+    can(session, 'opportunities:read') ? listOpportunities(db, { orgId: org.orgId, status: 'open', limit: 400 }) : Promise.resolve([]),
   ]);
-  const customers = await getCustomersByIds(db, [...new Set(tasks.flatMap((t) => (t.customerId ? [t.customerId] : [])))]);
-  const cName = new Map(customers.map((c) => [c.id, c.fullName]));
+  const [customers, opportunityRows] = [custOptions.items, oppOptions];
+  const [linkedCustomers, linkedOpps] = await Promise.all([
+    getCustomersByIds(db, [...new Set(tasksRaw.flatMap((t) => (t.customerId ? [t.customerId] : [])))]),
+    getOpportunitiesByIds(db, [...new Set(tasksRaw.flatMap((t) => (t.opportunityId ? [t.opportunityId] : [])))]),
+  ]);
+  const cName = new Map(linkedCustomers.map((c) => [c.id, c.fullName]));
+  const oTitle = new Map(linkedOpps.map((o) => [o.id, o.title]));
   const nameOf = (uid: string | null) => {
     const m = members.find((x) => x.userId === uid);
     return uid ? (m?.fullName ?? m?.email ?? 'Alguien') : 'Sin asignar';
   };
-  const fmt = new Intl.DateTimeFormat('es', { dateStyle: 'medium', timeStyle: 'short', timeZone: org.orgTimezone });
-  const groups = status === 'open' ? groupTasks(tasks, new Date(), org.orgTimezone) : [{ bucket: 'none' as const, tasks }];
 
   const taskScope = session.permissions['tasks:create'];
   const myTeam = members.find((m) => m.userId === session.user.id)?.teamId ?? null;
-  const people = members.filter((m) => m.status === 'active' && m.userId !== session.user.id
+  const people: Opt[] = members.filter((m) => m.status === 'active' && m.userId !== session.user.id
     && (taskScope === 'org' || (taskScope === 'team' && myTeam !== null && m.teamId === myTeam)))
     .map((m) => ({ id: m.userId, name: m.fullName ?? m.email ?? 'Sin nombre' }));
-  const q = (v: string, s: string) => `/tasks?${new URLSearchParams({ ...(v === 'all' ? { view: 'all' } : {}), ...(s === 'done' ? { status: 'done' } : {}) })}`;
-  const back = q(view, status);
+  const custOpts: Opt[] = customers.map((c) => ({ id: c.id, name: c.fullName }));
+  const oppOpts: OppOpt[] = opportunityRows.map((o) => ({ id: o.id, title: o.title, customerId: o.customerId }));
+
+  const qs: Record<string, string> = {};
+  if (view === 'all') qs.view = 'all';
+  if (sp.estado) qs.estado = sp.estado;
+  if (sp.vista) qs.vista = sp.vista;
+  if (sp.tipo) qs.tipo = sp.tipo;
+  if (sp.prioridad) qs.prioridad = sp.prioridad;
+  if (sp.responsable) qs.responsable = sp.responsable;
+  if (sp.q) qs.q = sp.q;
+  const href = (patch: Record<string, string>) => { const p = new URLSearchParams({ ...qs, ...patch }); for (const k of Object.keys(patch)) if (!patch[k]) p.delete(k); const s = p.toString(); return s ? `/tasks?${s}` : '/tasks'; };
+  const back = href({});
+
+  const now = new Date();
+  const groups = !board && estado === '' ? groupTasks(tasksRaw, now, org.orgTimezone) : null;
+  const columns = board ? buildTaskColumns(tasksRaw) : null;
+  const overdueCount = tasksRaw.filter((t) => isOverdue(t, now)).length;
+
+  const card = (t: (typeof tasksRaw)[number], dense = false) => (
+    <TaskCard key={t.id} task={t} customerName={t.customerId ? (cName.get(t.customerId) ?? null) : null} opportunityTitle={t.opportunityId ? (oTitle.get(t.opportunityId) ?? null) : null}
+      assigneeName={nameOf(t.assigneeId)} showAssignee={view === 'all'} locale="es" timeZone={org.orgTimezone} people={people} returnTo={back} dense={dense} />
+  );
 
   return (
     <>
@@ -55,80 +94,59 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       </header>
       {flash ? <Notice kind={flash.kind}>{flash.message}</Notice> : null}
 
-      {can(session, 'tasks:create') ? (
-        <section className="panel" aria-labelledby="new-task">
-          <details>
-            <summary><h2 id="new-task" style={{ display: 'inline', fontSize: '1rem' }}>Nueva tarea</h2></summary>
-            <NewTaskForm returnTo={back} people={people} />
-          </details>
-        </section>
-      ) : null}
-
-      <section className="panel" aria-labelledby="list-title">
-        <div className="panel-head" style={{ flexWrap: 'wrap', gap: 10 }}>
-          <h2 id="list-title">{status === 'open' ? 'Pendientes' : 'Completadas'} ({tasks.length})</h2>
-          <nav className="tabs" aria-label="Filtros">
-            <Link href={q(view, 'open')} aria-current={status === 'open' ? 'page' : undefined}>Pendientes</Link>
-            <Link href={q(view, 'done')} aria-current={status === 'done' ? 'page' : undefined}>Completadas</Link>
-            {seesOthers ? (
-              <>
-                <Link href={q('mine', status)} aria-current={view === 'mine' ? 'page' : undefined}>Mías</Link>
-                <Link href={q('all', status)} aria-current={view === 'all' ? 'page' : undefined}>{session.permissions['tasks:read'] === 'org' ? 'Todas' : 'De mi equipo'}</Link>
-              </>
-            ) : null}
-          </nav>
+      <div className="flt-bar">
+        <SearchInput basePath="/tasks" initial={sp.q ?? ''} placeholder="Buscar por título o descripción" />
+        <FilterSelect basePath="/tasks" param="estado" label="Estado" value={board ? '' : (sp.estado ?? '')} allLabel="Abiertas"
+          options={[{ value: 'in_progress', label: 'En progreso' }, { value: 'done', label: 'Completadas' }, { value: 'cancelled', label: 'Canceladas' }, { value: 'todas', label: 'Todas' }]} />
+        <FilterSelect basePath="/tasks" param="tipo" label="Tipo" value={sp.tipo ?? ''} options={TASK_TYPES.map((t) => ({ value: t, label: TASK_TYPE_LABEL[t] ?? t }))} />
+        <FilterSelect basePath="/tasks" param="prioridad" label="Prioridad" value={sp.prioridad ?? ''} options={Object.entries(PRIORITY_LABEL).map(([v, l]) => ({ value: v, label: l }))} />
+        {seesOthers ? (
+          <FilterSelect basePath="/tasks" param="responsable" label="Responsable" value={view === 'all' ? (sp.responsable ?? '') : ''}
+            options={[{ value: 'sin_asignar', label: 'Sin asignar' }, ...members.filter((m) => m.status === 'active').map((m) => ({ value: m.userId, label: m.fullName ?? m.email ?? 'Sin nombre' }))]} />
+        ) : null}
+        <div className="view-toggle" role="tablist" aria-label="Vista">
+          <a href={href({ vista: '' })} aria-current={!board ? 'page' : undefined}>Lista</a>
+          <a href={href({ vista: 'tablero' })} aria-current={board ? 'page' : undefined}>Tablero</a>
         </div>
+      </div>
 
-        {tasks.length === 0 ? (
-          <div className="empty"><p><strong>{status === 'open' ? 'No tienes tareas pendientes.' : 'Aún no hay tareas completadas.'}</strong></p></div>
-        ) : groups.map(({ bucket, tasks: list }) => (
-          <div key={bucket}>
-            {status === 'open' ? <h3 style={{ margin: '14px 0 4px', fontSize: '0.95rem', color: bucket === 'overdue' ? 'var(--danger)' : undefined }}>{BUCKET_LABEL[bucket]} ({list.length})</h3> : null}
-            {list.map((t) => (
-              <div className={`task-row ${t.status === 'done' ? 'done' : ''}`} key={t.id}>
-                <div className="main">
-                  <span className="t"><strong>{t.title}</strong>{' '}
-                    {t.priority === 'high' ? <span className="badge badge-warn">{PRIORITY_LABEL.high}</span> : null}{' '}
-                    <span className="badge">{TASK_TYPE_LABEL[t.type] ?? t.type}</span>
-                  </span>
-                  <span className="small muted">
-                    {t.dueAt ? `Vence ${fmt.format(new Date(t.dueAt))}` : 'Sin fecha'}
-                    {t.customerId ? <> · <Link href={`/customers/${t.customerId}`}>{cName.get(t.customerId) ?? 'Cliente'}</Link></> : null}
-                    {t.opportunityId ? <> · <Link href={`/opportunities/${t.opportunityId}`}>Oportunidad</Link></> : null}
-                    {view === 'all' ? ` · ${nameOf(t.assigneeId)}` : ''}
-                  </span>
-                  {t.outcome ? <span className="small">Resultado: {t.outcome}</span> : null}
-                </div>
-                <div className="acts">
-                  {t.status === 'open' ? (
-                    <>
-                      <details>
-                        <summary className="btn btn-secondary btn-sm">Completar</summary>
-                        <form action={completeTaskAction} className="stack" style={{ marginTop: 6 }}>
-                          <input type="hidden" name="taskId" value={t.id} />
-                          <input type="hidden" name="returnTo" value={back} />
-                          <label className="sr-only" htmlFor={`o-${t.id}`}>Resultado</label>
-                          <input id={`o-${t.id}`} name="outcome" className="input" maxLength={500} placeholder="Resultado (opcional)" />
-                          <button className="btn btn-primary btn-sm" type="submit">Guardar</button>
-                        </form>
-                      </details>
-                      <form action={cancelTaskAction}>
-                        <input type="hidden" name="taskId" value={t.id} /><input type="hidden" name="returnTo" value={back} />
-                        <ConfirmButton message="¿Cancelar esta tarea?" className="btn btn-ghost btn-sm">Cancelar</ConfirmButton>
-                      </form>
-                    </>
-                  ) : (
-                    <form action={reopenTaskAction}>
-                      <input type="hidden" name="taskId" value={t.id} /><input type="hidden" name="returnTo" value={back} />
-                      <button className="btn btn-ghost btn-sm" type="submit">Reabrir</button>
-                    </form>
-                  )}
-                </div>
-              </div>
-            ))}
+      <div className="flt-bar" style={{ marginTop: -4 }}>
+        {seesOthers ? (
+          <div className="view-toggle" role="tablist" aria-label="Alcance">
+            <a href={href({ view: '' })} aria-current={view === 'mine' ? 'page' : undefined}>Mías</a>
+            <a href={href({ view: 'all' })} aria-current={view === 'all' ? 'page' : undefined}>{session.permissions['tasks:read'] === 'org' ? 'Todas' : 'De mi equipo'}</a>
           </div>
-        ))}
-      </section>
+        ) : null}
+        {can(session, 'tasks:create') ? (
+          <NewTaskModal trigger={<button type="button" className="btn btn-primary" style={{ marginLeft: 'auto' }}>+ Nueva tarea</button>} customers={custOpts} opportunities={oppOpts} people={people} returnTo={back} />
+        ) : null}
+      </div>
+
+      {overdueCount > 0 && estado !== '' ? <Notice kind="error">Tienes {overdueCount} {overdueCount === 1 ? 'tarea vencida' : 'tareas vencidas'} fuera de este filtro.</Notice> : null}
+
+      {tasksRaw.length === 0 ? (
+        <div className="empty-state"><strong>{q || type || priority ? 'Nada coincide con estos filtros.' : 'No hay tareas aquí.'}</strong><p>Crea una nueva o ajusta los filtros de arriba.</p></div>
+      ) : board ? (
+        <div className="task-board">
+          {columns!.map((col) => (
+            <section key={col.status} className="task-col" aria-label={col.label}>
+              <div className="task-col-head"><h3>{col.label}</h3><span className="badge badge-neutral">{col.tasks.length}</span></div>
+              <div className="task-col-body">{col.tasks.length === 0 ? <p className="hint">Sin tareas</p> : col.tasks.map((t) => card(t, true))}</div>
+            </section>
+          ))}
+        </div>
+      ) : groups ? (
+        <div className="stack">
+          {groups.map(({ bucket, tasks }) => (
+            <div key={bucket}>
+              <h2 className={`task-bucket-head${bucket === 'overdue' ? ' is-overdue' : ''}`}>{BUCKET_LABEL[bucket]} ({tasks.length})</h2>
+              <div className="task-list">{tasks.map((t) => card(t))}</div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="task-list">{tasksRaw.map((t) => card(t))}</div>
+      )}
     </>
   );
 }

@@ -45,6 +45,10 @@ async function transition(fd: FormData, run: (db: Awaited<ReturnType<typeof acti
   redirect(back);
 }
 
+export async function startTaskAction(fd: FormData): Promise<void> {
+  await transition(fd, (db, id) => tasks.startTask(db, id), 'Tarea en progreso.');
+}
+
 export async function completeTaskAction(fd: FormData): Promise<void> {
   await transition(fd, (db, id) => tasks.completeTask(db, id, str(fd.get('outcome')).trim() || undefined), 'Tarea completada.');
 }
@@ -57,16 +61,32 @@ export async function reopenTaskAction(fd: FormData): Promise<void> {
 
 export async function logActivityAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   try {
-    const { db } = await actionContext();
+    const { db, org } = await actionContext();
     const customerId = str(fd.get('customerId'));
     await sales.logActivity(db, {
       customerId, type: str(fd.get('type')), direction: str(fd.get('direction')), summary: str(fd.get('summary')),
-      opportunityId: str(fd.get('opportunityId')),
-    });
+      opportunityId: str(fd.get('opportunityId')), occurredAt: str(fd.get('occurredAt')),
+    }, org.orgTimezone);
     revalidatePath(`/customers/${customerId}`);
+    revalidatePath('/activities');
     const opp = str(fd.get('opportunityId'));
     if (opp) revalidatePath(`/opportunities/${opp}`);
     return { ok: true, message: 'Actividad registrada.' };
+  } catch (e) {
+    return { ok: false, error: toUserMessage(e) };
+  }
+}
+
+export async function editTaskAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  try {
+    const { db, org } = await actionContext();
+    const id = uuidSchema.parse(str(fd.get('taskId')));
+    await sales.editTask(db, id, org.orgTimezone, {
+      title: str(fd.get('title')), type: str(fd.get('type')) || undefined, priority: str(fd.get('priority')) || undefined,
+      due: str(fd.get('due')), description: str(fd.get('description')), assigneeId: str(fd.get('assigneeId')),
+    });
+    refresh(str(fd.get('returnTo')) || undefined);
+    return { ok: true, message: 'Tarea actualizada.' };
   } catch (e) {
     return { ok: false, error: toUserMessage(e) };
   }
