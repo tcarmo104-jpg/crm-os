@@ -7,32 +7,22 @@
 .page:has(> .ib) { max-width: none; padding: 0; gap: 0; }
 
 .ib {
-  --ib-bg: #ffffff; --ib-panel: #ffffff; --ib-canvas: #f3f5fb; --ib-hover: #f6f7fc;
-  --ib-line: #e3e6f1; --ib-line-2: #eceff7;
-  --ib-ink: #1a1d3a; --ib-ink2: #454a6b; --ib-muted: #7a7f9d;
-  --ib-accent: #6528d7; --ib-accent-h: #5420b5; --ib-accent-soft: #efe9fc; --ib-on-accent: #ffffff;
-  --ib-select: #e9effd; --ib-select-bar: #3b6be0;
-  --ib-out: #dde6fb; --ib-auto: #ebe7fa;
-  --ib-note: #fff6d1; --ib-note-line: #ecd486; --ib-note-ink: #5b4700; --ib-note-btn: #a15c07;
-  --ib-danger: #d92d3a; --ib-danger-soft: #fdecee; --ib-ok: #14804f; --ib-warn: #b45309; --ib-warn-soft: #fff4e0;
-  --ib-shadow: 0 8px 28px rgba(26, 29, 58, 0.16);
+  --ib-bg: var(--surface); --ib-panel: var(--surface); --ib-canvas: var(--canvas); --ib-hover: var(--hover);
+  --ib-line: var(--line); --ib-line-2: var(--line-soft);
+  --ib-ink: var(--ink); --ib-ink2: var(--ink-2); --ib-muted: var(--muted);
+  --ib-accent: var(--primary); --ib-accent-h: var(--primary-hover); --ib-accent-soft: var(--primary-soft); --ib-on-accent: var(--primary-ink);
+  --ib-select: var(--primary-soft); --ib-select-bar: var(--primary);
+  --ib-out: var(--bubble-out); --ib-auto: var(--bubble-auto);
+  --ib-note: var(--note-bg); --ib-note-line: var(--note-line); --ib-note-ink: var(--note-ink); --ib-note-btn: var(--note-btn);
+  --ib-danger: var(--danger); --ib-danger-soft: var(--danger-soft); --ib-ok: var(--ok); --ib-warn: var(--warn); --ib-warn-soft: var(--warn-soft);
+  --ib-shadow: var(--shadow-2);
 
   display: grid; grid-template-columns: clamp(300px, 26vw, 360px) minmax(0, 1fr) clamp(290px, 23vw, 330px);
   height: calc(100dvh - var(--topbar-h, 56px)); min-height: 460px; overflow: hidden; position: relative;
   background: var(--ib-bg); color: var(--ib-ink); font: 400 13.5px/1.45 var(--font-ui, system-ui, sans-serif);
   transition: grid-template-columns 0.2s ease;
 }
-[data-theme='dark'] .ib {
-  --ib-bg: #151827; --ib-panel: #181c2e; --ib-canvas: #0f1220; --ib-hover: #1c2136;
-  --ib-line: #2a3050; --ib-line-2: #222842;
-  --ib-ink: #e8eafc; --ib-ink2: #c1c6e6; --ib-muted: #8b91b5;
-  --ib-accent: #a78bfa; --ib-accent-h: #c4b5fd; --ib-accent-soft: #2a2150; --ib-on-accent: #1a1140;
-  --ib-select: #20284a; --ib-select-bar: #7b9cff;
-  --ib-out: #27315e; --ib-auto: #262048;
-  --ib-note: #33290f; --ib-note-line: #6b5518; --ib-note-ink: #f6e3a1; --ib-note-btn: #c9821b;
-  --ib-danger: #ff8a90; --ib-danger-soft: #3a1a20; --ib-ok: #6ee7a8; --ib-warn: #fdb022; --ib-warn-soft: #33260a;
-  --ib-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
-}
+/* El modo oscuro sale de los tokens globales (globals.css): este módulo no define paleta propia. */
 .ib[data-context='closed'] { grid-template-columns: clamp(300px, 26vw, 360px) minmax(0, 1fr) 0px; }
 .ib[data-context='closed'] .ib-context { display: none; }
 
@@ -73,7 +63,7 @@ textarea.ib-input { height: auto; padding: 8px 10px; resize: vertical; }
 .ib-avatar-chan { position: absolute; right: -3px; bottom: -3px; line-height: 0; border: 2px solid var(--ib-panel); border-radius: 50%; }
 .ib-row.is-selected .ib-avatar-chan { border-color: var(--ib-select); }
 .ib-chan { display: inline-grid; place-items: center; border-radius: 50%; color: #fff; flex: none; }
-.ib-chan--whatsapp { background: #25d366; }
+.ib-chan--whatsapp { background: var(--ch-whatsapp); }
 .ib-chan--instagram { background: linear-gradient(45deg, #f9b234, #ee2a7b 55%, #6228d7); }
 .ib-chan--facebook { background: #0a7cff; }
 .ib-chan--gmail { background: #ea4335; }
@@ -136,7 +126,7 @@ textarea.ib-input { height: auto; padding: 8px 10px; resize: vertical; }
 .ib-chat-sub { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; white-space: nowrap; overflow: hidden; color: var(--ib-muted); font-size: 12.5px; }
 .ib-status { flex: none; }
 .ib-status { padding: 0 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; background: var(--ib-line-2); color: var(--ib-ink2); }
-.ib-status--open { background: #e2f6ec; color: #14804f; }
+.ib-status--open { background: #e2f6ec; color: var(--ok); }
 [data-theme='dark'] .ib-status--open { background: #12321f; color: #6ee7a8; }
 .ib-chat-actions { display: flex; align-items: center; gap: 6px; flex: none; }
 /* Cuando el chat es angosto (ficha abierta, tablet, móvil) las acciones bajan a una segunda fila y el nombre nunca se recorta. */

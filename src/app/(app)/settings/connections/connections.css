@@ -2,21 +2,15 @@
    Conexiones · centro de integraciones. TODO está aislado bajo `.cx` / `.cx-*`: no toca ningún otro módulo.
    ========================================================================== */
 .cx {
-  --cx-panel: #ffffff; --cx-bg: #f2f4fa; --cx-hover: #f7f8fd; --cx-line: #e2e6f1; --cx-line-2: #eceff7;
-  --cx-ink: #1a1d3a; --cx-ink2: #454a6b; --cx-muted: #7a7f9d;
-  --cx-accent: #6528d7; --cx-accent-h: #5420b5; --cx-accent-soft: #efe9fc; --cx-on-accent: #fff;
-  --cx-ok: #14804f; --cx-ok-soft: #dcf5e6; --cx-warn: #8a5700; --cx-warn-soft: #fff1d6; --cx-danger: #b4382e; --cx-danger-soft: #fde8e6; --cx-mute-soft: #ececf3;
-  --cx-shadow: 0 6px 22px rgba(26, 29, 58, 0.1);
+  --cx-panel: var(--surface); --cx-bg: var(--surface-2); --cx-hover: var(--hover); --cx-line: var(--line); --cx-line-2: var(--line-soft);
+  --cx-ink: var(--ink); --cx-ink2: var(--ink-2); --cx-muted: var(--muted);
+  --cx-accent: var(--primary); --cx-accent-h: var(--primary-hover); --cx-accent-soft: var(--primary-soft); --cx-on-accent: var(--primary-ink);
+  --cx-ok: var(--ok); --cx-ok-soft: var(--ok-soft); --cx-warn: var(--warn); --cx-warn-soft: var(--warn-soft); --cx-danger: var(--danger); --cx-danger-soft: var(--danger-soft); --cx-mute-soft: var(--neutral-soft);
+  --cx-shadow: var(--shadow-2);
   display: flex; flex-direction: column; gap: 16px; max-width: 1180px; margin: 0 auto; min-width: 0;
   color: var(--cx-ink); font: 400 14px/1.5 var(--font-ui, system-ui, sans-serif);
 }
-[data-theme='dark'] .cx {
-  --cx-panel: #181c2e; --cx-bg: #131728; --cx-hover: #1c2136; --cx-line: #2a3050; --cx-line-2: #222842;
-  --cx-ink: #e8eafc; --cx-ink2: #c1c6e6; --cx-muted: #8b91b5;
-  --cx-accent: #a78bfa; --cx-accent-h: #c4b5fd; --cx-accent-soft: #2a2150; --cx-on-accent: #1a1140;
-  --cx-ok: #6ee7a8; --cx-ok-soft: #12321f; --cx-warn: #f5c46a; --cx-warn-soft: #3a2b0d; --cx-danger: #ff9d94; --cx-danger-soft: #3d1c1a; --cx-mute-soft: #22273f;
-  --cx-shadow: 0 6px 22px rgba(0, 0, 0, 0.5);
-}
+/* El modo oscuro sale de los tokens globales (globals.css): este módulo no define paleta propia. */
 .cx *, .cx *::before, .cx *::after { box-sizing: border-box; }
 .cx h1, .cx h2, .cx p, .cx ul, .cx ol, .cx dl, .cx dd { margin: 0; padding: 0; font-family: inherit; }
 .cx ul, .cx ol { list-style: none; }

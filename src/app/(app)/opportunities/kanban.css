@@ -5,20 +5,15 @@
 .page:has(> .kb) { max-width: none; padding: 20px 24px 40px; gap: 0; }
 
 .kb {
-  --kb-panel: #ffffff; --kb-col: #f2f4fa; --kb-hover: #f7f8fd; --kb-line: #e2e6f1; --kb-line-2: #eceff7;
-  --kb-ink: #1a1d3a; --kb-ink2: #454a6b; --kb-muted: #7a7f9d;
-  --kb-accent: #6528d7; --kb-accent-h: #5420b5; --kb-accent-soft: #efe9fc; --kb-on-accent: #fff;
-  --kb-danger: #d92d3a; --kb-danger-soft: #fdecee; --kb-ok: #14804f;
-  --kb-shadow: 0 8px 28px rgba(26, 29, 58, 0.16);
+  --kb-panel: var(--surface); --kb-col: var(--surface-2); --kb-hover: var(--hover); --kb-line: var(--line); --kb-line-2: var(--line-soft);
+  --kb-ink: var(--ink); --kb-ink2: var(--ink-2); --kb-muted: var(--muted);
+  --kb-accent: var(--primary); --kb-accent-h: var(--primary-hover); --kb-accent-soft: var(--primary-soft); --kb-on-accent: var(--primary-ink);
+  --kb-danger: var(--danger); --kb-danger-soft: var(--danger-soft); --kb-ok: var(--ok);
+  --kb-shadow: var(--shadow-2);
   display: flex; flex-direction: column; gap: 14px; min-width: 0;
   color: var(--kb-ink); font: 400 13.5px/1.45 var(--font-ui, system-ui, sans-serif);
 }
-[data-theme='dark'] .kb {
-  --kb-panel: #181c2e; --kb-col: #131728; --kb-hover: #1c2136; --kb-line: #2a3050; --kb-line-2: #222842;
-  --kb-ink: #e8eafc; --kb-ink2: #c1c6e6; --kb-muted: #8b91b5;
-  --kb-accent: #a78bfa; --kb-accent-h: #c4b5fd; --kb-accent-soft: #2a2150; --kb-on-accent: #1a1140;
-  --kb-danger: #ff8a90; --kb-danger-soft: #3a1a20; --kb-ok: #6ee7a8; --kb-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
-}
+/* El modo oscuro sale de los tokens globales (globals.css): este módulo no define paleta propia. */
 .kb *, .kb *::before, .kb *::after { box-sizing: border-box; }
 .kb h1, .kb h2, .kb h3, .kb p, .kb ul, .kb ol, .kb dl, .kb dd { margin: 0; padding: 0; font-family: inherit; }
 .kb ul, .kb ol { list-style: none; }
@@ -142,7 +137,7 @@ textarea.kb-input { resize: vertical; }
 [data-theme='dark'] .kb-temp--hot { background: #3d1c1a; color: #ff9d94; } [data-theme='dark'] .kb-temp--warm { background: #3a2b0d; color: #f5c46a; } [data-theme='dark'] .kb-temp--cold { background: #14294a; color: #8fb8ff; }
 .kb-avatar { display: inline-grid; place-items: center; flex: none; border-radius: 50%; color: #fff; font-weight: 700; line-height: 1; letter-spacing: 0.02em; }
 .kb-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex: none; }
-.kb-dot--whatsapp { background: #25d366; } .kb-dot--instagram { background: linear-gradient(135deg, #feda75, #d62976 55%, #4f5bd5); } .kb-dot--facebook { background: #0084ff; }
+.kb-dot--whatsapp { background: var(--ch-whatsapp); } .kb-dot--instagram { background: linear-gradient(135deg, #feda75, #d62976 55%, #4f5bd5); } .kb-dot--facebook { background: var(--ch-messenger); }
 .kb-chan { display: inline-flex; align-items: center; gap: 4px; color: var(--kb-muted); font-size: 11.5px; white-space: nowrap; }
 
 /* Zonas de «Ganada» y «Perdida»: solo aparecen mientras se arrastra */
@@ -173,14 +168,14 @@ textarea.kb-input { resize: vertical; }
 .kb-stage-form { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1px solid var(--kb-line); border-radius: 10px; background: var(--kb-col); }
 .kb-stage-row { display: grid; grid-template-columns: 1fr 1.3fr auto; gap: 6px; align-items: center; }
 .kb-stage-pill { padding: 0 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; background: var(--kb-accent-soft); color: var(--kb-accent); }
-.kb-stage-pill--won { background: #dcf5e6; color: #14804f; } .kb-stage-pill--lost { background: #ececf3; color: #565b78; }
+.kb-stage-pill--won { background: #dcf5e6; color: var(--ok); } .kb-stage-pill--lost { background: #ececf3; color: #565b78; }
 .kb-kv { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 7px 12px; align-items: center; }
 .kb-kv dt { color: var(--kb-muted); } .kb-kv dd { overflow-wrap: anywhere; }
 .kb-kv .kb-select { max-width: 220px; }
 .kb-block { display: block; }
 .kb-lines li { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--kb-line-2); }
 .kb-pill { padding: 0 8px; border-radius: 6px; font-size: 11.5px; font-weight: 600; background: var(--kb-col); color: var(--kb-ink2); }
-.kb-pill--accepted { background: #dcf5e6; color: #14804f; } .kb-pill--sent { background: #fff1d6; color: #8a5700; } .kb-pill--rejected { background: #fde8e6; color: #b4382e; }
+.kb-pill--accepted { background: #dcf5e6; color: var(--ok); } .kb-pill--sent { background: #fff1d6; color: #8a5700; } .kb-pill--rejected { background: #fde8e6; color: #b4382e; }
 .kb-act-form { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
 .kb-act-form .kb-select { max-width: 220px; }
 .kb-timeline { display: flex; flex-direction: column; gap: 12px; }

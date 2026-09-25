@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { Breadcrumb } from '@/components/Breadcrumb';
+import { GlobalSearch } from '@/components/GlobalSearch';
 import { Icon } from '@/components/Icon';
 import { OrgSwitcher } from '@/components/OrgSwitcher';
 import { Sidebar } from '@/components/Sidebar';
@@ -18,6 +20,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   const sidebar = parseSidebarState((await cookies()).get(SIDEBAR_COOKIE)?.value);
   const displayName = session.user.fullName ?? session.user.email;
+  const initials = displayName.split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') || '?';
 
   return (
     <div className="shell">
@@ -32,13 +35,16 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <label htmlFor="nav-open" className="icon-btn menu-btn" aria-label="Abrir menú">
             <Icon name="menu" />
           </label>
+          <Breadcrumb />
+          <GlobalSearch />
+          <span className="spacer" />
           <OrgSwitcher
             orgs={session.memberships.map((m) => ({ id: m.orgId, name: m.orgName }))}
             activeId={session.active.orgId}
           />
-          <span className="spacer" />
           <ThemeToggle />
           <div className="user">
+            <span className="avatar" aria-hidden="true">{initials}</span>
             <div className="user-text">
               <span className="user-name">{displayName}</span>
               <span className="user-role">{session.active.roleName}</span>

@@ -35,7 +35,7 @@ function Item({ item, collapsed, active }: { item: NavItem; collapsed: boolean; 
       href={item.href}
       className={`nav-item${active ? ' is-active' : ''}`}
       aria-current={active ? 'page' : undefined}
-      title={collapsed ? item.label : undefined}
+      data-tip={collapsed ? item.label : undefined}
     >
       {inner}
     </Link>
@@ -73,8 +73,8 @@ export function Sidebar({ groups, initial, brand }: { groups: NavGroup[]; initia
         </div>
 
         {groups.map((g) => {
-          const open = state.collapsed || !state.closed.includes(g.key);
-          const hasAvailable = g.items.some((i) => i.href);
+          // «Próximamente» nace plegado; el resto, abierto. Cada persona conserva su elección.
+          const open = state.collapsed || (g.key === 'soon' ? state.closed.includes('soon:open') : !state.closed.includes(g.key));
           return (
             <section className="nav-group" key={g.key}>
               {state.collapsed ? (
@@ -84,15 +84,13 @@ export function Sidebar({ groups, initial, brand }: { groups: NavGroup[]; initia
                   type="button"
                   className="nav-group-btn"
                   aria-expanded={open}
-                  onClick={() =>
-                    update({
-                      ...state,
-                      closed: open ? [...state.closed, g.key] : state.closed.filter((k) => k !== g.key),
-                    })
-                  }
+                  onClick={() => {
+                    const key = g.key === 'soon' ? 'soon:open' : g.key;
+                    const has = state.closed.includes(key);
+                    update({ ...state, closed: has ? state.closed.filter((k) => k !== key) : [...state.closed, key] });
+                  }}
                 >
                   <span>{g.label}</span>
-                  {!hasAvailable ? <span className="nav-soon-tag">Pronto</span> : null}
                   <span className={`chev${open ? ' is-open' : ''}`}>
                     <Icon name="chevron" size={14} />
                   </span>
@@ -116,7 +114,7 @@ export function Sidebar({ groups, initial, brand }: { groups: NavGroup[]; initia
           className="nav-item nav-toggle"
           onClick={() => update({ ...state, collapsed: !state.collapsed })}
           aria-pressed={state.collapsed}
-          title={state.collapsed ? 'Expandir menú' : 'Contraer menú'}
+          data-tip={state.collapsed ? 'Expandir menú' : undefined}
         >
           <Icon name="sidebar" />
           <span className="nav-label">{state.collapsed ? 'Expandir menú' : 'Contraer menú'}</span>

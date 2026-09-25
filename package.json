@@ -7,9 +7,10 @@
   },
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node check-upload.mjs",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json",
     "test": "vitest run",
     "test:db": "bash scripts/test-db.sh",
     "test:integration": "bash scripts/test-postgrest.sh"
