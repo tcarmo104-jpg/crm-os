@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BoardCard } from './kanban';
 import type { StageRow } from './types';
-import { nextAction, stageFunnel, timeAgo, type NextActionInput } from './today';
+import { buildActionQueue, nextAction, stageFunnel, timeAgo, type NextActionInput } from './today';
 
 const st = (id: string, name: string, position: number, kind: StageRow['kind'] = 'open', archivedAt: string | null = null): StageRow => ({ id, pipelineId: 'p', name, kind, position, probability: 0, archivedAt });
 const card = (id: string, stageId: string, amount: number, status: BoardCard['status'] = 'open'): BoardCard => ({ id, number: id, title: id, amount, currency: 'COP', stageId, status, priority: 'medium', temperature: null, channel: null, customerId: 'c', customerName: 'C', ownerId: null, ownerName: null, createdAt: '2026-01-01', expectedCloseDate: null, product: null, conversationId: null, lostReason: null });
@@ -55,4 +55,32 @@ describe('tiempos relativos', () => {
     expect(timeAgo(ago(400000), now, 'es', 'UTC')).toMatch(/\d+ sept/);
   });
   it('valores vacíos o inválidos no rompen', () => { expect(timeAgo(null, now)).toBe(''); expect(timeAgo('no-es-fecha', now)).toBe(''); expect(timeAgo(ago(-500), now)).toBe('ahora'); });
+});
+
+describe('buildActionQueue: la fila COMPLETA de trabajo pendiente, no solo el primer ítem', () => {
+  it('orden: vencidas → respuestas pendientes → de hoy; cada grupo de más urgente a menos', () => {
+    const q = buildActionQueue({
+      overdueTasks: [
+        { id: 't1', title: 'Vencida reciente', customerId: 'c1', dueAt: '2026-09-19T10:00:00Z' },
+        { id: 't2', title: 'Vencida antigua', customerId: 'c2', dueAt: '2026-09-10T10:00:00Z' },
+      ],
+      pendingReplies: [{ id: 'v1', name: 'Ana', lastMessageAt: '2026-09-20T08:00:00Z' }],
+      todayTasks: [{ id: 't3', title: 'De hoy', customerId: null, dueAt: '2026-09-21T15:00:00Z' }],
+    });
+    expect(q.map((x) => x.title)).toEqual(['Vencida antigua', 'Vencida reciente', 'Responde a Ana', 'De hoy']);
+    expect(q.map((x) => x.kind)).toEqual(['task_overdue', 'task_overdue', 'reply', 'task_today']);
+    expect(q.map((x) => x.tone)).toEqual(['urgent', 'urgent', 'urgent', 'todo']);
+    expect(q.map((x) => x.id)).toEqual(['t2', 't1', 'v1', 't3']);
+  });
+  it('los enlaces van al cliente cuando existe, o al módulo correspondiente si no', () => {
+    const q = buildActionQueue({ overdueTasks: [{ id: 't1', title: 'x', customerId: null, dueAt: null }], pendingReplies: [], todayTasks: [] });
+    expect(q[0]!.href).toBe('/tasks');
+    const q2 = buildActionQueue({ overdueTasks: [{ id: 't1', title: 'x', customerId: 'c9', dueAt: null }], pendingReplies: [], todayTasks: [] });
+    expect(q2[0]!.href).toBe('/customers/c9');
+    const q3 = buildActionQueue({ overdueTasks: [], pendingReplies: [{ id: 'conv1', name: 'Beto', lastMessageAt: null }], todayTasks: [] });
+    expect(q3[0]!.href).toBe('/inbox?c=conv1');
+  });
+  it('sin nada pendiente, la fila queda vacía (la pantalla decide qué mostrar en ese caso)', () => {
+    expect(buildActionQueue({ overdueTasks: [], pendingReplies: [], todayTasks: [] })).toEqual([]);
+  });
 });

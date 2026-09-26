@@ -8,7 +8,7 @@ FROM="${1:-1}"
 if [ "$FROM" = "1" ]; then OUT=supabase/setup-all.sql; else OUT="supabase/setup-desde-$(printf %04d "$FROM").sql"; fi
 
 # Primera tabla que crea cada migración: si ya existe, esa migración ya está instalada.
-sentinel() { case "$1" in 6) echo custom_field_definitions;; 7) echo customers;; 8) echo api_keys;; 9) echo pipelines;; 10) echo tasks;; 11) echo products;; 12) echo sales;; 13) echo channels;; 14) echo tags;; 16) echo connection_events;; 17) echo oauth_sessions;; 18) echo message_attachments;; 19) echo attachment_uploads;; 21) echo webhook_stats;; 22) echo provider_apps;; *) echo "";; esac; }
+sentinel() { case "$1" in 6) echo custom_field_definitions;; 7) echo customers;; 8) echo api_keys;; 9) echo pipelines;; 10) echo tasks;; 11) echo products;; 12) echo sales;; 13) echo channels;; 14) echo tags;; 16) echo connection_events;; 17) echo oauth_sessions;; 18) echo message_attachments;; 19) echo attachment_uploads;; 21) echo webhook_stats;; 22) echo provider_apps;; 25) echo sequences;; *) echo "";; esac; }
 
 {
   echo "-- ============================================================================="

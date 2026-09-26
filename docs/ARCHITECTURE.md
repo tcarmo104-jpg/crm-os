@@ -558,3 +558,10 @@ Solo el módulo de acceso (Login, Crear cuenta, Recuperar contraseña). El prove
 HTTP (`lib/auth-errors.ts`), campo de contraseña con mostrar/ocultar (`PasswordField`), «Recordarme» real
 (cookie de sesión vs. persistente, aislado en la acción de login), y rediseño visual del panel de acceso
 (`(focus)/layout.tsx`, dos columnas en escritorio).
+
+## 31. Mi próxima acción y Secuencias (migración 0025, Fase 7) — ver docs/PROXIMA-ACCION-SECUENCIAS.md
+
+`sequences`, `sequence_steps`, `sequence_enrollments`. Cada paso avanza solo al completar el anterior
+(enganchado en `app.task_transition`, sin cron). `lib/today.ts` gana `buildActionQueue` (pura), reutilizada
+por `/next-action`. `merge_customers` se redefine de nuevo para cancelar una inscripción duplicada cuando
+dos clientes con la misma secuencia activa se fusionan.

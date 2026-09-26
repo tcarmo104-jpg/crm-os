@@ -59,3 +59,32 @@ export function timeAgo(iso: string | null | undefined, now: Date = new Date(), 
   if (s < 172800) return 'ayer';
   return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', timeZone }).format(new Date(t));
 }
+
+// ---------------------------------------------------------------------------
+// «Mi próxima acción»: la fila de trabajo COMPLETA (no solo el primer ítem), para su propia pantalla.
+// ---------------------------------------------------------------------------
+export interface QueueItem {
+  kind: 'task_overdue' | 'reply' | 'task_today';
+  tone: 'urgent' | 'todo';
+  id: string;
+  title: string;
+  detail: string;
+  href: string;
+  customerId: string | null;
+  at: string | null; // fecha de vencimiento u hora del último mensaje, para ordenar dentro del mismo tipo
+}
+export interface QueueInput {
+  overdueTasks: { id: string; title: string; customerId: string | null; dueAt: string | null }[];
+  todayTasks: { id: string; title: string; customerId: string | null; dueAt: string | null }[];
+  pendingReplies: { id: string; name: string; lastMessageAt: string | null }[];
+}
+
+/** Misma prioridad que ya usa la tarjeta de «Hoy» (atrasadas → respuestas → de hoy), pero con la fila
+ * COMPLETA en vez de solo el primer ítem, y ordenada de más urgente a menos dentro de cada grupo. */
+export function buildActionQueue(i: QueueInput): QueueItem[] {
+  const byDate = (a: { at: string | null }, b: { at: string | null }) => (a.at ? new Date(a.at).getTime() : 0) - (b.at ? new Date(b.at).getTime() : 0);
+  const overdue: QueueItem[] = i.overdueTasks.map((t) => ({ kind: 'task_overdue', tone: 'urgent', id: t.id, title: t.title, detail: 'Tarea vencida', href: t.customerId ? `/customers/${t.customerId}` : '/tasks', customerId: t.customerId, at: t.dueAt }));
+  const replies: QueueItem[] = i.pendingReplies.map((c) => ({ kind: 'reply', tone: 'urgent', id: c.id, title: `Responde a ${c.name}`, detail: 'Conversación esperando respuesta', href: `/inbox?c=${c.id}`, customerId: null, at: c.lastMessageAt }));
+  const today: QueueItem[] = i.todayTasks.map((t) => ({ kind: 'task_today', tone: 'todo', id: t.id, title: t.title, detail: 'Vence hoy', href: t.customerId ? `/customers/${t.customerId}` : '/tasks', customerId: t.customerId, at: t.dueAt }));
+  return [...overdue.sort(byDate), ...replies.sort(byDate), ...today.sort(byDate)];
+}

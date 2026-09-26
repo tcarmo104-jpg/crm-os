@@ -20,6 +20,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     key: 'main', label: 'Principal',
     items: [
+      { key: 'next-action', label: 'Mi próxima acción', icon: 'bolt', href: '/next-action' },
       { key: 'inbox', label: 'Inbox', icon: 'inbox', href: '/inbox' },
       { key: 'opportunities', label: 'Oportunidades', icon: 'target', href: '/opportunities' },
       { key: 'tasks', label: 'Tareas', icon: 'check', href: '/tasks' },
@@ -35,6 +36,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { key: 'sales', label: 'Ventas', icon: 'cash', href: '/sales' },
       { key: 'products', label: 'Productos y servicios', icon: 'box', href: '/products' },
       { key: 'cases', label: 'Casos de postventa', icon: 'shield', href: '/cases' },
+      { key: 'sequences', label: 'Secuencias', icon: 'repeat', href: '/sequences' },
     ],
   },
   {
@@ -58,8 +60,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { key: 'instagram', label: 'Instagram', icon: 'chat', phase: 5 },
       { key: 'facebook', label: 'Facebook', icon: 'chat', phase: 5 },
       { key: 'email', label: 'Email', icon: 'mail', phase: 5 },
-      { key: 'next-action', label: 'Mi próxima acción', icon: 'bolt', phase: 7 },
-      { key: 'sequences', label: 'Secuencias', icon: 'repeat', phase: 7 },
       { key: 'automations', label: 'Automatizaciones', icon: 'tool', phase: 8 },
       { key: 'ai-assistant', label: 'Asistente de IA', icon: 'sparkle', phase: 9 },
       { key: 'recommendations', label: 'Recomendaciones', icon: 'bolt', phase: 9 },

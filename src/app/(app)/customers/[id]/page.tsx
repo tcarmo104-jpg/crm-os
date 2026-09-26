@@ -28,6 +28,8 @@ import { ConfirmButton, Notice } from '@/components/ui';
 import { TagList } from '@/components/tags';
 import { AddIdentifierForm, DncForm, EditProfileForm, OwnerForm } from '@/components/customer-forms';
 import { removeIdentifierAction } from '../actions';
+import { listSequences } from '@/repositories/sequences';
+import { EnrollModal } from '@/components/sequences/SequenceModals';
 
 export const metadata: Metadata = { title: 'Cliente' };
 
@@ -52,7 +54,7 @@ export default async function CustomerPage({ params, searchParams }: { params: P
   const customer = await getCustomer(db, id);
   if (!customer) notFound();
 
-  const [identifiers, events, leads, members, defs, companies, flash, opps, tasks, pipelines, salesPage, cases, convPage, orgTags, myTags, files] = await Promise.all([
+  const [identifiers, events, leads, members, defs, companies, flash, opps, tasks, pipelines, salesPage, cases, convPage, orgTags, myTags, files, activeSequences] = await Promise.all([
     listIdentifiers(db, [id]),
     timeline(db, id, 50),
     listLeads(db, { orgId: org.orgId, customerId: id, limit: 20 }),
@@ -69,6 +71,7 @@ export default async function CustomerPage({ params, searchParams }: { params: P
     listTags(db, org.orgId),
     tagsByCustomer(db, [id]),
     listCustomerAttachments(db, id, 40),
+    can(session, 'sequences:read') ? listSequences(db, org.orgId, { activeOnly: true }) : Promise.resolve([]),
   ]);
   const stageName = new Map(pipelines.flatMap((p) => p.stages.map((s) => [s.id, s.name] as const)));
   const back = `/customers/${id}`;
@@ -225,6 +228,14 @@ export default async function CustomerPage({ params, searchParams }: { params: P
                 <h2 id="tasks-title">Tareas pendientes ({tasks.length})</h2>
                 {can(session, 'tasks:read') ? <Link className="btn btn-ghost btn-sm" href={`/tasks?cliente=${customer.id}`}>Ver todas en Tareas →</Link> : null}
               </div>
+              {can(session, 'sequences:read') && activeSequences.length > 0 ? (
+                <EnrollModal
+                  trigger={<button type="button" className="btn btn-secondary btn-sm">Inscribir en secuencia</button>}
+                  customerId={customer.id} sequences={activeSequences.map((s) => ({ id: s.id, name: s.name }))}
+                  opportunities={opps.map((o) => ({ id: o.id, title: o.title, customerId: o.customerId }))}
+                  people={active.map((m) => ({ id: m.userId, name: m.fullName ?? m.email ?? 'Sin nombre' }))}
+                />
+              ) : null}
               {tasks.length === 0 ? <p className="muted">No hay tareas pendientes para este cliente.</p> : tasks.map((t) => (
                 <div className="task-row" key={t.id}>
                   <div className="main">

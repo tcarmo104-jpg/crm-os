@@ -622,3 +622,30 @@ dialog.modal::backdrop { background: rgba(8, 20, 40, 0.45); backdrop-filter: blu
 .tag-picker { display: flex; flex-wrap: wrap; gap: 6px; }
 .tag-swatch { width: 20px; height: 20px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
 .tag-swatch[aria-pressed='true'] { border-color: var(--ink); }
+
+/* ==========================================================================
+   Mi próxima acción
+   ========================================================================== */
+.queue-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s-2); counter-reset: queue; }
+.queue-item { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-4); background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--neutral); border-radius: var(--r-panel); box-shadow: var(--shadow-1); }
+.queue-item--urgent { border-left-color: var(--danger); }
+.queue-item--todo { border-left-color: var(--warn); }
+.queue-num { flex: none; width: 24px; height: 24px; display: inline-grid; place-items: center; border-radius: 50%; background: var(--surface-2); color: var(--muted); font-size: var(--fs-caption); font-weight: 700; }
+.queue-ico { flex: none; display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: var(--primary-soft); color: var(--primary); }
+.queue-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.queue-title { font-weight: 600; font-size: 0.9rem; color: var(--ink); text-decoration: none; }
+.queue-title:hover { color: var(--primary); }
+.queue-detail { font-size: var(--fs-caption); color: var(--muted); }
+.queue-acts { display: flex; gap: 6px; flex: none; }
+
+/* ==========================================================================
+   Secuencias
+   ========================================================================== */
+.step-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s-2); }
+.step-row { display: flex; align-items: flex-start; gap: var(--s-3); padding: var(--s-3); background: var(--surface-2); border-radius: var(--r-control); }
+.step-num { flex: none; width: 26px; height: 26px; display: inline-grid; place-items: center; border-radius: 50%; background: var(--primary-soft); color: var(--primary); font-size: var(--fs-caption); font-weight: 700; }
+.step-body { flex: 1; min-width: 0; }
+.step-title { font-weight: 600; font-size: 0.875rem; }
+.step-meta { font-size: var(--fs-caption); color: var(--muted); }
+.step-form { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto; gap: var(--s-2); align-items: end; padding: var(--s-3); background: var(--surface-2); border-radius: var(--r-control); }
+.sequence-card { display: flex; flex-direction: column; gap: 6px; padding: var(--s-4); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-panel); box-shadow: var(--shadow-1); }
