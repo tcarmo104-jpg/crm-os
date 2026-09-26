@@ -1,8 +1,12 @@
 import type { HandlerRegistry } from './dispatcher';
+import { automationHandlers } from './automation-handler';
 
 /**
- * Registro de handlers. En la Fase 1b solo hay observabilidad.
- * Las siguientes fases registran aquí, sin tocar el dispatcher:
+ * Registro de handlers. En la Fase 1b solo había observabilidad.
+ * Fase 8 suma Automatizaciones (reglas «cuando ocurre X y se cumple Y, entonces Z»), sin tocar el
+ * dispatcher: cada disparador soportado apunta al mismo handler, que ya sabe encontrar y ejecutar
+ * las reglas activas de la organización del evento.
+ * Las siguientes fases registran aquí, de la misma forma:
  *   'customer.*'     → timeline, scoring
  *   'quote.accepted' → crear venta, recompra
  *   'message.received' → clasificación de intención (IA)
@@ -23,4 +27,5 @@ export const registry: HandlerRegistry = {
       );
     },
   ],
+  ...automationHandlers,
 };

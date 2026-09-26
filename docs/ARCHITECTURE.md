@@ -565,3 +565,10 @@ HTTP (`lib/auth-errors.ts`), campo de contraseña con mostrar/ocultar (`Password
 (enganchado en `app.task_transition`, sin cron). `lib/today.ts` gana `buildActionQueue` (pura), reutilizada
 por `/next-action`. `merge_customers` se redefine de nuevo para cancelar una inscripción duplicada cuando
 dos clientes con la misma secuencia activa se fusionan.
+
+## 32. Automatizaciones (migración 0026, Fase 8) — ver docs/AUTOMATIZACIONES.md
+
+`automation_rules` / `automation_runs`, disparadas por eventos que el sistema ya emite, ejecutadas por el
+despachador de eventos ya existente (`/api/cron/dispatch-events`), con la identidad de quien creó la regla
+(impersonación vía `request.jwt.claims` dentro de una función solo accesible por `service_role`). Depende de
+que ese despachador se ejecute periódicamente (ver docs/DEPLOY.md §5).
