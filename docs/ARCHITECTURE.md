@@ -542,3 +542,11 @@ Estado `in_progress` añadido a `tasks` (con `start_task`), tipo `visit` añadid
 Página nueva `/activities` (módulo propio, antes solo embebido en Oportunidades/Clientes). `EditTaskModal` conecta por fin a la
 pantalla el servicio `editTask`, que ya existía sin usarse. `Modal`/`CloseOnSuccess` (en `ui.tsx`) y `FilterSelect`/`SearchInput`/
 `DateFilter` (en `filters.tsx`) son primitivos nuevos, genéricos y reutilizables por cualquier módulo futuro.
+
+## 29. Clientes y Leads (migración 0024) — ver docs/CLIENTES-LEADS.md
+
+`create_lead` (RPC) reutiliza `app.ingest_lead_core` (la misma resolución de identidad que la importación CSV) para crear
+un lead a mano. `listCustomers`/`listLeads` ganan filtros (etiqueta, ciudad, tipo, no-contactar / estado, fuente,
+resultado, responsable, fechas, texto). La ficha de cliente se reorganiza en pestañas y suma Etiquetas y Archivos
+(reutilizando `customer_tags` y el panel de archivos del Inbox, sin tocar ese módulo). Correcciones de CSS compartido
+(`.panel`, `.page`, `.table-wrap`, `.task-complete-form`) que evitan que una tabla ancha desborde cualquier página futura.

@@ -7,6 +7,8 @@ import { countryFromLocale } from '@/lib/identity';
 import { decodeCsvBuffer } from '@/lib/csv';
 import type { ActionState } from '@/lib/action-state';
 import { importLeads } from '@/repositories/leads';
+import * as leadsService from '@/services/leads';
+import { actionContext, str } from '@/lib/action-context';
 import { listFieldDefinitions } from '@/repositories/custom-fields';
 import { importLeadsCsv, MAX_CSV_BYTES } from '@/services/lead-import';
 import { revalidatePath } from 'next/cache';
@@ -36,6 +38,22 @@ export async function importLeadsAction(_prev: ActionState, fd: FormData): Promi
     revalidatePath('/customers');
     revalidatePath('/settings/duplicates');
     return { ok: true, data: { summary: JSON.stringify(summary) } };
+  } catch (e) {
+    return { ok: false, error: toUserMessage(e) };
+  }
+}
+
+/** «Nuevo lead»: crear uno a mano, reutilizando la misma resolución de identidad que la importación CSV. */
+export async function createLeadAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  try {
+    const { org, db } = await actionContext();
+    const r = await leadsService.createLead(db, org.orgId, {
+      name: str(fd.get('name')), phone: str(fd.get('phone')), email: str(fd.get('email')), type: str(fd.get('type')) || undefined,
+      source: str(fd.get('source')), channel: str(fd.get('channel')), campaign: str(fd.get('campaign')),
+      productInterest: str(fd.get('productInterest')), notes: str(fd.get('notes')),
+    });
+    revalidatePath('/leads'); revalidatePath('/customers'); revalidatePath(`/customers/${r.customerId}`);
+    return { ok: true, message: r.deduplicated ? 'Lead creado para un cliente ya existente.' : 'Lead y cliente creados.', data: { customerId: r.customerId, leadId: r.leadId } };
   } catch (e) {
     return { ok: false, error: toUserMessage(e) };
   }

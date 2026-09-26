@@ -29,9 +29,13 @@ export interface ListParams {
   userId: string;
   cursor?: string;
   limit?: number;
+  tagId?: string;
+  city?: string;
+  type?: 'person' | 'company';
+  doNotContact?: boolean;
 }
 
-/** Lista con búsqueda (nombre, teléfono, correo) y paginación por cursor. Solo devuelve lo que RLS permite. */
+/** Lista con búsqueda (nombre, teléfono, correo), filtros y paginación por cursor. Solo devuelve lo que RLS permite. */
 export async function listCustomers(db: ServerSupabase, p: ListParams): Promise<Page<CustomerRow>> {
   const limit = Math.min(p.limit ?? 25, 100);
   const q = (p.q ?? '').trim().slice(0, 80);
@@ -63,6 +67,17 @@ export async function listCustomers(db: ServerSupabase, p: ListParams): Promise<
   if (orFilter) query = query.or(orFilter);
   if (p.owner === 'mine') query = query.eq('owner_id', p.userId);
   if (p.owner === 'none') query = query.is('owner_id', null);
+  if (p.city) query = query.ilike('city', p.city);
+  if (p.type) query = query.eq('type', p.type);
+  if (p.doNotContact !== undefined) query = query.eq('do_not_contact', p.doNotContact);
+  if (p.tagId) {
+    const tagged = unwrap(
+      await db.from('customer_tags').select('customer_id').eq('org_id', p.orgId).eq('tag_id', p.tagId).limit(500),
+    ) as { customer_id: string }[];
+    const ids = [...new Set(tagged.map((t) => t.customer_id))];
+    if (ids.length === 0) return { items: [], nextCursor: null };
+    query = query.in('id', ids);
+  }
 
   const cur = decodeCursor(p.cursor);
   if (cur) query = query.or(`created_at.lt.${cur.ts},and(created_at.eq.${cur.ts},id.lt.${cur.id})`);
@@ -77,6 +92,12 @@ export async function listCustomers(db: ServerSupabase, p: ListParams): Promise<
     items: page.map(map),
     nextCursor: rows.length > limit && last ? encodeCursor({ ts: last.created_at, id: last.id }) : null,
   };
+}
+
+/** Ciudades ya usadas en la organización (para el filtro «Ciudad»), sin traer todos los clientes. */
+export async function listCitiesUsed(db: ServerSupabase, orgId: string): Promise<string[]> {
+  const rows = unwrap(await db.from('customers').select('city').eq('org_id', orgId).not('city', 'is', null).limit(2000)) as unknown as { city: string }[];
+  return [...new Set(rows.map((r) => r.city).filter(Boolean))].sort();
 }
 
 export async function getCustomer(db: ServerSupabase, id: string): Promise<CustomerRow | null> {

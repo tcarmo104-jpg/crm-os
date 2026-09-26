@@ -73,6 +73,21 @@ sentinel() { case "$1" in 6) echo custom_field_definitions;; 7) echo customers;;
       echo "    raise exception 'FALTA la migración 0019 (Envío de archivos). Instala primero setup-desde-0019.sql o avísame.';"
       echo "  end if;"
     fi
+    if [ "$FROM" -ge 24 ]; then
+      echo "  if to_regprocedure('public.start_task(uuid)') is null then"
+      echo "    raise exception 'FALTA la migración 0023 (Tareas y Actividades). Instala primero setup-desde-0023.sql o avísame.';"
+      echo "  end if;"
+    fi
+    if [ "$FROM" = "23" ]; then
+      echo "  if to_regprocedure('public.start_task(uuid)') is not null then"
+      echo "    raise exception 'Este proyecto YA tiene instalada la migración 0023 (existe la función start_task). No ejecutes este archivo: avísame.';"
+      echo "  end if;"
+    fi
+    if [ "$FROM" = "24" ]; then
+      echo "  if to_regprocedure('public.create_lead(uuid,jsonb)') is not null then"
+      echo "    raise exception 'Este proyecto YA tiene instalada la migración 0024 (existe la función create_lead). No ejecutes este archivo: avísame.';"
+      echo "  end if;"
+    fi
     if [ "$FROM" = "17" ]; then
       echo "  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'channels' and column_name = 'connection_status') then"
       echo "    raise exception 'FALTA la migración 0016 (Conexiones de WhatsApp). Instala primero setup-desde-0016.sql o avísame.';"

@@ -198,12 +198,12 @@ a:hover { color: var(--primary); }
 }
 .icon-btn:hover { background: var(--surface-2); color: var(--ink); }
 
-.page { width: 100%; max-width: 1240px; padding: var(--s-8) var(--s-8) 64px; display: flex; flex-direction: column; gap: var(--s-6); }
+.page { min-width: 0; width: 100%; max-width: 1240px; padding: var(--s-8) var(--s-8) 64px; display: flex; flex-direction: column; gap: var(--s-6); }
 .page-head { display: flex; flex-direction: column; gap: var(--s-1); }
 .page-head > p, .page-head .muted { max-width: 70ch; }
 
 /* ---------- Superficies ---------- */
-.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-panel); box-shadow: var(--shadow-1); padding: var(--s-5) var(--s-6); display: flex; flex-direction: column; gap: var(--s-4); }
+.panel { min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-panel); box-shadow: var(--shadow-1); padding: var(--s-5) var(--s-6); display: flex; flex-direction: column; gap: var(--s-4); }
 .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 
 .checklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
@@ -269,7 +269,7 @@ a:hover { color: var(--primary); }
 .copy-row .input { flex: 1; font-size: var(--fs-small); }
 
 /* ---------- Tablas: encabezado claro, filas limpias, hover suave ---------- */
-.table-wrap { overflow-x: auto; }
+.table-wrap { position: relative; overflow-x: auto; }
 .table { width: 100%; border-collapse: collapse; font-size: var(--fs-small); }
 .table th { text-align: left; font-weight: 600; color: var(--muted); font-size: var(--fs-caption); letter-spacing: 0.04em; text-transform: uppercase; padding: var(--s-3) var(--s-4); background: var(--hover); border-bottom: 1px solid var(--line); white-space: nowrap; }
 .table th:first-child { border-top-left-radius: var(--r-control); } .table th:last-child { border-top-right-radius: var(--r-control); }
@@ -536,7 +536,11 @@ dialog.modal::backdrop { background: rgba(8, 20, 40, 0.45); backdrop-filter: blu
 .task-complete { position: relative; }
 .task-complete summary { list-style: none; cursor: pointer; }
 .task-complete summary::-webkit-details-marker { display: none; }
-.task-complete-form { position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; display: flex; gap: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-control); box-shadow: var(--shadow-2); padding: 8px; min-width: 220px; }
+.task-complete-form { display: none; position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; gap: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-control); box-shadow: var(--shadow-2); padding: 8px; min-width: 220px; }
+/* El contenido de un <details> cerrado debe estar realmente oculto: sin esto, `display: flex` de arriba
+   anularía el comportamiento nativo del navegador y el menú quedaría "invisible" pero seguiría ocupando
+   espacio (y en pantallas angostas, desbordando la página). */
+.task-complete[open] .task-complete-form { display: flex; }
 .task-card.is-dense .task-card-desc { display: none; }
 
 /* Lista: encabezados de grupo (Vencidas, Hoy, Mañana…) */
@@ -563,3 +567,16 @@ dialog.modal::backdrop { background: rgba(8, 20, 40, 0.45); backdrop-filter: blu
 .activity-summary { font-size: 0.9rem; }
 .activity-meta { font-size: var(--fs-caption); color: var(--muted); }
 .activity-meta a { color: var(--primary); text-decoration: none; }
+
+/* ==========================================================================
+   Etiquetas de cliente (compartidas por Clientes, Leads e Inbox)
+   ========================================================================== */
+.tag { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 1px 9px; border-radius: var(--r-pill); color: #fff; font-size: var(--fs-caption); font-weight: 600; line-height: 1.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tag--violet { background: #7e4fe0; } .tag--blue { background: #2b7bf0; } .tag--teal { background: #0f9c9c; } .tag--green { background: #1fa971; }
+.tag--yellow { background: #f5c400; color: #3d3000; } .tag--orange { background: #f08a1a; } .tag--red { background: #e5484d; } .tag--pink { background: #dc4a94; } .tag--gray { background: #6b7688; }
+.tag-x { display: inline-grid; place-items: center; width: 16px; height: 16px; margin-right: -4px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.25); color: inherit; cursor: pointer; }
+.tag-x:hover { background: rgba(0, 0, 0, 0.25); }
+.tag-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tag-picker { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag-swatch { width: 20px; height: 20px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
+.tag-swatch[aria-pressed='true'] { border-color: var(--ink); }

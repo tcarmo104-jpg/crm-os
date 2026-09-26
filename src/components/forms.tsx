@@ -13,20 +13,22 @@ import { createTeam } from '@/app/(app)/settings/teams/actions';
 type Action = (prev: ActionState, fd: FormData) => Promise<ActionState>;
 
 export function Field({
-  label, name, type = 'text', autoComplete, hint, defaultValue, value, onChange, required = true, minLength, maxLength, placeholder, id: idProp, inputMode,
+  label, name, type = 'text', autoComplete, hint, defaultValue, value, onChange, required = true, minLength, maxLength, placeholder, id: idProp, inputMode, list,
 }: {
   label: string; name: string; type?: string; autoComplete?: string; hint?: string;
   defaultValue?: string; value?: string; onChange?: (v: string) => void;
   required?: boolean; minLength?: number; maxLength?: number; placeholder?: string;
   /** Cuando hay dos formularios con el mismo `name` en una página, el id debe ser único. */
   id?: string; inputMode?: 'text' | 'numeric' | 'decimal' | 'tel' | 'email' | 'url' | 'search';
+  /** id de un <datalist> con sugerencias (autocompletar sin restringir lo que se puede escribir). */
+  list?: string;
 }) {
   const id = idProp ?? `f-${name}`;
   return (
     <div className="field">
       <label className="label" htmlFor={id}>{label}</label>
       <input
-        id={id} name={name} type={type} className="input" autoComplete={autoComplete}
+        id={id} name={name} type={type} className="input" autoComplete={autoComplete} list={list}
         required={required} minLength={minLength} maxLength={maxLength} placeholder={placeholder} inputMode={inputMode}
         {...(value !== undefined ? { value, onChange: (e) => onChange?.(e.target.value) } : { defaultValue })}
         aria-describedby={hint ? `${id}-hint` : undefined}

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { can, getSession } from '@/lib/session';
 import { readFlash } from '@/lib/flash';
@@ -14,7 +15,7 @@ import { TaskCard } from '@/components/tasks/TaskCard';
 
 export const metadata: Metadata = { title: 'Tareas' };
 
-type Params = { view?: string; estado?: string; vista?: string; tipo?: string; prioridad?: string; responsable?: string; q?: string };
+type Params = { view?: string; estado?: string; vista?: string; tipo?: string; prioridad?: string; responsable?: string; cliente?: string; q?: string };
 
 export default async function TasksPage({ searchParams }: { searchParams: Promise<Params> }) {
   const sp = await searchParams;
@@ -38,7 +39,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   const [tasksRaw, members, flash, custOptions, oppOptions] = await Promise.all([
     listTasks(db, {
       orgId: org.orgId, status, statuses, assigneeId: view === 'mine' ? session.user.id : (sp.responsable && sp.responsable !== 'sin_asignar' ? sp.responsable : undefined),
-      unassigned: view === 'all' && sp.responsable === 'sin_asignar', type, priority, q, limit: 500,
+      unassigned: view === 'all' && sp.responsable === 'sin_asignar', type, priority, q, customerId: sp.cliente || undefined, limit: 500,
     }),
     listMembers(db, org.orgId),
     readFlash(),
@@ -72,6 +73,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   if (sp.tipo) qs.tipo = sp.tipo;
   if (sp.prioridad) qs.prioridad = sp.prioridad;
   if (sp.responsable) qs.responsable = sp.responsable;
+  if (sp.cliente) qs.cliente = sp.cliente;
   if (sp.q) qs.q = sp.q;
   const href = (patch: Record<string, string>) => { const p = new URLSearchParams({ ...qs, ...patch }); for (const k of Object.keys(patch)) if (!patch[k]) p.delete(k); const s = p.toString(); return s ? `/tasks?${s}` : '/tasks'; };
   const back = href({});
@@ -118,10 +120,11 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
           </div>
         ) : null}
         {can(session, 'tasks:create') ? (
-          <NewTaskModal trigger={<button type="button" className="btn btn-primary" style={{ marginLeft: 'auto' }}>+ Nueva tarea</button>} customers={custOpts} opportunities={oppOpts} people={people} returnTo={back} />
+          <NewTaskModal trigger={<button type="button" className="btn btn-primary" style={{ marginLeft: 'auto' }}>+ Nueva tarea</button>} customers={custOpts} opportunities={oppOpts} people={people} returnTo={back} defaultCustomerId={sp.cliente} />
         ) : null}
       </div>
 
+      {sp.cliente ? <p className="hint">Mostrando solo tareas de <strong>{custOpts.find((c) => c.id === sp.cliente)?.name ?? 'este cliente'}</strong> · <Link href={href({ cliente: '' })}>Quitar</Link></p> : null}
       {overdueCount > 0 && estado !== '' ? <Notice kind="error">Tienes {overdueCount} {overdueCount === 1 ? 'tarea vencida' : 'tareas vencidas'} fuera de este filtro.</Notice> : null}
 
       {tasksRaw.length === 0 ? (

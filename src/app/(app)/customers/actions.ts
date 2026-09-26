@@ -10,6 +10,7 @@ import { countryFromLocale } from '@/lib/identity';
 import { mergeCustomFields, readCustomFields } from '@/lib/custom-fields';
 import type { ActionState } from '@/lib/action-state';
 import * as customers from '@/services/customers';
+import * as inboxService from '@/services/inbox';
 import * as customersRepo from '@/repositories/customers';
 import { listFieldDefinitions } from '@/repositories/custom-fields';
 import { uuidSchema } from '@/services/schemas';
@@ -130,4 +131,26 @@ export async function removeIdentifierAction(fd: FormData): Promise<void> {
   }
   revalidatePath(`/customers/${id}`);
   redirect(`/customers/${uuidSchema.safeParse(id).success ? id : ''}`);
+}
+
+/** Etiquetas del cliente: mismas funciones ya validadas y usadas por el Inbox (`services/inbox.ts`), sin duplicar lógica. */
+export async function addCustomerTagAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const id = customerId(fd);
+  const back = str(fd.get('returnTo')) || `/customers/${id}`;
+  try {
+    const { db } = await ctx();
+    await inboxService.addTag(db, { customerId: id, name: str(fd.get('name')), color: str(fd.get('color')) });
+    revalidatePath(`/customers/${id}`); revalidatePath('/customers');
+  } catch (e) { return { ok: false, error: toUserMessage(e) }; }
+  // Igual que crear un cliente o cambiar el estado de una tarea: un `redirect` fuerza a traer datos frescos,
+  // en vez de confiar en que la página se refresque sola después de la acción (en esta pantalla no ocurría).
+  redirect(back);
+}
+export async function removeCustomerTagAction(fd: FormData): Promise<void> {
+  const id = customerId(fd);
+  const back = str(fd.get('returnTo')) || `/customers/${id}`;
+  const { db } = await ctx();
+  await inboxService.removeTag(db, { customerId: id, tagId: str(fd.get('tagId')) }).catch(() => undefined);
+  revalidatePath(`/customers/${id}`); revalidatePath('/customers');
+  redirect(back);
 }
