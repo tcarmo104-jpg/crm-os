@@ -13,10 +13,12 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <div className="stack-lg">
       <div className="stack">
-        <h1>Inicia sesión</h1>
-        {fromInvite ? (
-          <p className="muted">Entra con el correo al que llegó la invitación, o crea una cuenta con ese mismo correo.</p>
-        ) : null}
+        <h1>Bienvenido de nuevo</h1>
+        <p className="muted">
+          {fromInvite
+            ? 'Entra con el correo al que llegó la invitación, o crea una cuenta con ese mismo correo.'
+            : 'Ingresa tus datos para entrar a tu cuenta.'}
+        </p>
       </div>
       {sp.error === 'callback' ? (
         <Notice kind="error">El enlace del correo no es válido o ya venció. Inicia sesión, o solicita uno nuevo.</Notice>

@@ -280,11 +280,53 @@ a:hover { color: var(--primary); }
 .person { display: flex; align-items: center; gap: var(--s-2); }
 .cell-actions { text-align: right; }
 
-/* ---------- Pantallas de acceso ---------- */
-.focus { min-height: 100dvh; display: flex; flex-direction: column; }
-.focus-head { display: flex; align-items: center; gap: 10px; padding: 22px 28px; }
+/* ---------- Pantallas de acceso: panel de marca (escritorio) + formulario ---------- */
+.focus { min-height: 100dvh; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); background: var(--surface); }
+.focus-brand {
+  position: relative; display: none; flex-direction: column; justify-content: center; padding: 64px;
+  background: linear-gradient(160deg, var(--navy-950) 0%, var(--navy-900) 55%, var(--navy-800) 100%); color: var(--side-ink); overflow: hidden;
+}
+.focus-brand::before {
+  content: ''; position: absolute; inset: -20% -10% auto auto; width: 60%; aspect-ratio: 1; border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--blue-500) 35%, transparent) 0%, transparent 70%);
+}
+.focus-brand-inner { position: relative; max-width: 420px; }
+.focus-brand-mark { display: block; width: 46px; height: 46px; border-radius: 13px; margin-bottom: var(--s-6); background: linear-gradient(135deg, var(--signal) 0 50%, #fff 50% 100%); }
+.focus-brand-name { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; opacity: 0.9; }
+.focus-brand-tag { margin: var(--s-3) 0 var(--s-8); font-size: 1.55rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.3; color: #fff; }
+.focus-brand-points { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s-4); }
+.focus-brand-points li { display: flex; align-items: flex-start; gap: 12px; font-size: 0.95rem; color: var(--side-ink); line-height: 1.5; }
+.focus-brand-dot { flex: none; width: 8px; height: 8px; margin-top: 7px; border-radius: 50%; background: var(--signal); }
+
+.focus-panel { display: flex; flex-direction: column; min-width: 0; }
+.focus-head { display: none; align-items: center; gap: 10px; padding: 22px 24px; }
 .focus-head .brand-mark { background: linear-gradient(135deg, var(--signal) 0 50%, var(--navy-900) 50% 100%); }
-.focus-body { width: 100%; max-width: 460px; margin: 0 auto; padding: 28px 24px 64px; flex: 1; }
+.focus-body { width: 100%; max-width: 400px; margin: 0 auto; padding: 24px 24px 64px; flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.focus-body h1 { font-size: 1.5rem; }
+
+@media (min-width: 861px) {
+  .focus-brand { display: flex; }
+}
+@media (max-width: 860px) {
+  .focus { display: block; }
+  .focus-head { display: flex; }
+  .focus-body { justify-content: flex-start; padding-top: var(--s-6); }
+}
+
+/* Campo de contraseña con el ícono de mostrar/ocultar dentro del mismo input. */
+.password-field { position: relative; }
+.password-field .input { padding-right: 42px; }
+.password-toggle {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%); display: inline-grid; place-items: center;
+  width: 34px; height: 34px; border: 0; border-radius: var(--r-control); background: none; color: var(--muted); cursor: pointer;
+}
+.password-toggle:hover { background: var(--surface-2); color: var(--ink); }
+.password-toggle:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+/* Fila «Recordarme» / «¿Olvidaste tu contraseña?» */
+.login-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); margin-top: -4px; }
+.checkbox-field { display: flex; align-items: center; gap: 8px; font-size: var(--fs-small); color: var(--ink-2); cursor: pointer; user-select: none; }
+.checkbox-field input { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
 
 /* ---------- Menú colapsado (solo escritorio): solo iconos + aviso al pasar el mouse ---------- */
 @media (min-width: 861px) {

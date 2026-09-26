@@ -550,3 +550,11 @@ un lead a mano. `listCustomers`/`listLeads` ganan filtros (etiqueta, ciudad, tip
 resultado, responsable, fechas, texto). La ficha de cliente se reorganiza en pestañas y suma Etiquetas y Archivos
 (reutilizando `customer_tags` y el panel de archivos del Inbox, sin tocar ese módulo). Correcciones de CSS compartido
 (`.panel`, `.page`, `.table-wrap`, `.task-complete-form`) que evitan que una tabla ancha desborde cualquier página futura.
+
+## 30. Login / Inicio de sesión — ver docs/LOGIN.md
+
+Solo el módulo de acceso (Login, Crear cuenta, Recuperar contraseña). El proveedor de autenticación
+(Supabase Auth) y el middleware de protección de rutas NO se tocaron. Mensajes de error afinados por código
+HTTP (`lib/auth-errors.ts`), campo de contraseña con mostrar/ocultar (`PasswordField`), «Recordarme» real
+(cookie de sesión vs. persistente, aislado en la acción de login), y rediseño visual del panel de acceso
+(`(focus)/layout.tsx`, dos columnas en escritorio).

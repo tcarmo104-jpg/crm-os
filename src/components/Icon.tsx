@@ -37,6 +37,8 @@ export const SHELL_PATHS: Record<IconName, string> = {
   help: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18|M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6|M12 17v.01',
   pin: 'M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z|M12 12.3a2.3 2.3 0 1 0 0-4.6 2.3 2.3 0 0 0 0 4.6',
   x: 'm6 6 12 12M18 6 6 18',
+  eye: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z',
+  'eye-off': 'M3 3l18 18',
 };
 
 /** Un solo componente de iconos. Si el nombre está en `SHAPES` se dibuja esa forma; si no, la del menú. Nombre desconocido: no dibuja nada. */

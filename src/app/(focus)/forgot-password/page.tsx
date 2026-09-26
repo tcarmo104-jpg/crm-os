@@ -9,7 +9,7 @@ export default function ForgotPage() {
     <div className="stack-lg">
       <div className="stack">
         <h1>Recupera tu contraseña</h1>
-        <p className="muted">Escribe tu correo y te enviamos un enlace para crear una contraseña nueva.</p>
+        <p className="muted">Escribe el correo de tu cuenta y te enviamos un enlace para crear una contraseña nueva.</p>
       </div>
       <ForgotForm />
       <p className="muted small"><Link href="/login">Volver a iniciar sesión</Link></p>

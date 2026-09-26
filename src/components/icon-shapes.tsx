@@ -5,6 +5,8 @@ export const STROKE = 1.75;
 
 /** Formas de los iconos (fuente única). Si un nombre existe aquí, TODA la app lo dibuja igual. */
 export const SHAPES: Record<string, ReactNode> = {
+  eye: <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></>,
+  'eye-off': <><path d="M3 3l18 18" /><path d="M10.6 5.2A10.6 10.6 0 0 1 12 5c6.5 0 10 7 10 7a17.5 17.5 0 0 1-3.2 4.2M6.6 6.6C3.7 8.4 2 12 2 12s3.5 7 10 7c1.4 0 2.7-.3 3.8-.8" /><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" /></>,
   search: <><circle cx="11" cy="11" r="6.5" /><path d="m20 20-4.2-4.2" /></>,
   filter: <path d="M4 5h16l-6 8v5l-4 2v-7z" />,
   paperclip: <path d="m20 11-8.2 8.2a5 5 0 0 1-7-7L13.5 3.5a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4L15 6.2" />,

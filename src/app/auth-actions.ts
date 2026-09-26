@@ -1,8 +1,10 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { siteUrl } from '@/lib/env';
+import { loginErrorMessage } from '@/lib/auth-errors';
 import { safeNext } from '@/lib/redirect';
 import type { ActionState } from '@/lib/action-state';
 import { firstIssue, loginSchema, signupSchema } from '@/services/schemas';
@@ -16,13 +18,23 @@ export async function login(_prev: ActionState, formData: FormData): Promise<Act
 
   const db = await createClient();
   const { error } = await db.auth.signInWithPassword(parsed.data);
-  if (error) {
-    if (error.message.toLowerCase().includes('not confirmed')) {
-      return { ok: false, error: 'Confirma tu correo desde el mensaje que te enviamos y vuelve a iniciar sesión.' };
-    }
-    return { ok: false, error: 'Correo o contraseña incorrectos.' };
-  }
+  if (error) return { ok: false, error: loginErrorMessage(error) };
+
+  // «Recordarme» desmarcado: la sesión que Supabase acaba de guardar se convierte en una cookie de sesión
+  // (se borra al cerrar el navegador) en vez de quedar varios días guardada, sin tocar cómo se maneja
+  // la sesión en el resto del sistema.
+  if (str(formData.get('remember')) !== 'on') await forgetOnClose();
+
   redirect(safeNext(str(formData.get('next'))));
+}
+
+/** Quita la fecha de vencimiento de las cookies de sesión que Supabase acaba de escribir (las de este dominio,
+ * con el prefijo `sb-`), para que el navegador las borre solo al cerrarse. No cambia nada más de la sesión. */
+async function forgetOnClose() {
+  const store = await cookies();
+  for (const c of store.getAll()) {
+    if (c.name.startsWith('sb-')) store.set(c.name, c.value, { path: '/', sameSite: 'lax', secure: siteUrl().startsWith('https://') });
+  }
 }
 
 export async function signup(_prev: ActionState, formData: FormData): Promise<ActionState> {

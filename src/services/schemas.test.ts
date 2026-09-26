@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { invitationSchema, organizationSchema, signupSchema, teamSchema } from './schemas';
+import { invitationSchema, loginSchema, organizationSchema, signupSchema, teamSchema } from './schemas';
 
 describe('organizationSchema', () => {
   it('acepta datos válidos y normaliza el slug', () => {
@@ -37,5 +37,24 @@ describe('teamSchema / signupSchema', () => {
   it('exige contraseña de al menos 10 caracteres', () => {
     expect(signupSchema.safeParse({ fullName: 'Ana', email: 'a@b.co', password: '123456789' }).success).toBe(false);
     expect(signupSchema.safeParse({ fullName: 'Ana', email: 'a@b.co', password: '1234567890' }).success).toBe(true);
+  });
+});
+
+describe('loginSchema: mensajes distintos para campo vacío y formato inválido', () => {
+  it('correo vacío → «Ingresa tu correo electrónico.»', () => {
+    const r = loginSchema.safeParse({ email: '', password: 'x' });
+    expect(r.success).toBe(false); expect(r.error?.issues[0]?.message).toBe('Ingresa tu correo electrónico.');
+  });
+  it('correo con formato inválido (no vacío) → «Ingresa un correo electrónico válido.»', () => {
+    const r = loginSchema.safeParse({ email: 'no-es-un-correo', password: 'x' });
+    expect(r.success).toBe(false); expect(r.error?.issues[0]?.message).toBe('Ingresa un correo electrónico válido.');
+  });
+  it('contraseña vacía → «Ingresa tu contraseña.»', () => {
+    const r = loginSchema.safeParse({ email: 'a@b.com', password: '' });
+    expect(r.success).toBe(false); expect(r.error?.issues[0]?.message).toBe('Ingresa tu contraseña.');
+  });
+  it('correo y contraseña válidos: se acepta y el correo queda en minúsculas', () => {
+    const r = loginSchema.safeParse({ email: '  Ana@Ejemplo.COM  ', password: 'x' });
+    expect(r.success).toBe(true); if (r.success) expect(r.data.email).toBe('ana@ejemplo.com');
   });
 });

@@ -27,7 +27,7 @@ export const teamSchema = z.object({
 });
 
 export const loginSchema = z.object({
-  email: z.string().trim().toLowerCase().email('Ingresa un correo válido.'),
+  email: z.string().trim().toLowerCase().min(1, 'Ingresa tu correo electrónico.').pipe(z.string().email('Ingresa un correo electrónico válido.')),
   password: z.string().min(1, 'Ingresa tu contraseña.'),
 });
 

@@ -1,7 +1,7 @@
 export type IconName =
   | 'home' | 'users' | 'user' | 'target' | 'file' | 'cash' | 'inbox' | 'chat' | 'mail' | 'check'
   | 'bolt' | 'repeat' | 'sparkle' | 'phone' | 'chart' | 'funnel' | 'box' | 'tool' | 'shield'
-  | 'plug' | 'gear' | 'team' | 'chevron' | 'sidebar' | 'sun' | 'moon' | 'logout' | 'plus' | 'copy' | 'menu' | 'search' | 'help' | 'pin' | 'x';
+  | 'plug' | 'gear' | 'team' | 'chevron' | 'sidebar' | 'sun' | 'moon' | 'logout' | 'plus' | 'copy' | 'menu' | 'search' | 'help' | 'pin' | 'x' | 'eye' | 'eye-off';
 
 export interface NavItem {
   key: string;
