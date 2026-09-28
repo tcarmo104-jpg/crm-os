@@ -41,16 +41,27 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    key: 'analytics', label: 'Analítica',
+    items: [
+      { key: 'dashboard', label: 'Dashboard', icon: 'chart', href: '/dashboard' },
+      { key: 'funnel', label: 'Embudo', icon: 'funnel', href: '/funnel' },
+      { key: 'performance', label: 'Desempeño', icon: 'chart', href: '/performance' },
+      { key: 'reports', label: 'Reportes', icon: 'file', href: '/reports' },
+    ],
+  },
+  {
     key: 'settings', label: 'Configuración',
     items: [
       { key: 'connections', label: 'Conexiones', icon: 'plug', href: '/settings/connections' },
       { key: 'integrations', label: 'Integraciones', icon: 'plug', href: '/settings/integrations' },
       { key: 'members', label: 'Miembros', icon: 'user', href: '/settings/members' },
+      { key: 'roles', label: 'Roles y permisos', icon: 'shield', href: '/settings/roles' },
       { key: 'teams', label: 'Equipos', icon: 'team', href: '/settings/teams' },
       { key: 'pipelines', label: 'Pipelines', icon: 'funnel', href: '/settings/pipelines' },
       { key: 'fields', label: 'Campos personalizados', icon: 'tool', href: '/settings/fields' },
       { key: 'duplicates', label: 'Duplicados', icon: 'copy', href: '/settings/duplicates' },
       { key: 'channels', label: 'Canales (WhatsApp)', icon: 'chat', href: '/settings/channels' },
+      { key: 'general', label: 'Configuración general', icon: 'gear', href: '/settings/general' },
     ],
   },
   {
@@ -63,14 +74,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { key: 'email', label: 'Email', icon: 'mail', phase: 5 },
       { key: 'ai-assistant', label: 'Asistente de IA', icon: 'sparkle', phase: 9 },
       { key: 'recommendations', label: 'Recomendaciones', icon: 'bolt', phase: 9 },
-      { key: 'dashboard', label: 'Dashboard', icon: 'chart', phase: 10 },
-      { key: 'reports', label: 'Reportes', icon: 'file', phase: 10 },
-      { key: 'funnel', label: 'Embudo', icon: 'funnel', phase: 10 },
-      { key: 'performance', label: 'Desempeño', icon: 'chart', phase: 10 },
       { key: 'calls', label: 'Análisis de llamadas', icon: 'phone', phase: 11 },
       { key: 'ai-analyst', label: 'Analista de negocio', icon: 'sparkle', phase: 12 },
-      { key: 'roles', label: 'Roles y permisos', icon: 'shield', phase: 13 },
-      { key: 'settings-general', label: 'Configuración general', icon: 'gear', phase: 13 },
     ],
   },
 ];

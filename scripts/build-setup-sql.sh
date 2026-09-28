@@ -83,6 +83,11 @@ sentinel() { case "$1" in 6) echo custom_field_definitions;; 7) echo customers;;
       echo "    raise exception 'FALTA la migración 0025 (Secuencias). Instala primero setup-desde-0025.sql o avísame. (La acción «inscribir en una secuencia» de Automatizaciones la necesita.)';"
       echo "  end if;"
     fi
+    if [ "$FROM" = "27" ]; then
+      echo "  if to_regprocedure('public.create_custom_role(uuid,text,text,text,jsonb)') is not null then"
+      echo "    raise exception 'Este proyecto YA tiene instalada la migración 0027 (existe la función create_custom_role). No ejecutes este archivo: avísame.';"
+      echo "  end if;"
+    fi
     if [ "$FROM" = "23" ]; then
       echo "  if to_regprocedure('public.start_task(uuid)') is not null then"
       echo "    raise exception 'Este proyecto YA tiene instalada la migración 0023 (existe la función start_task). No ejecutes este archivo: avísame.';"

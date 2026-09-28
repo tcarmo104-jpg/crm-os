@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { can, getSession } from '@/lib/session';
 import { readFlash } from '@/lib/flash';
 import { listMembers, listSystemRoles } from '@/repositories/members';
+import { listAllRoles } from '@/repositories/roles';
 import { listPending } from '@/repositories/invitations';
 import { listTeams } from '@/repositories/teams';
 import { INVITABLE_ROLES } from '@/lib/types';
@@ -19,9 +20,10 @@ export default async function MembersPage() {
   const canManage = can(session, 'users:manage');
   const isOwner = org.roleKey === 'super_admin';
 
-  const [members, roles, teams, pending, flash] = await Promise.all([
+  const [members, roles, allRoles, teams, pending, flash] = await Promise.all([
     listMembers(db, org.orgId),
     listSystemRoles(db),
+    can(session, 'roles:manage') ? listAllRoles(db, org.orgId) : Promise.resolve([]),
     listTeams(db, org.orgId),
     canManage ? listPending(db, org.orgId) : Promise.resolve([]),
     readFlash(),
@@ -29,7 +31,9 @@ export default async function MembersPage() {
 
   const teamName = new Map(teams.map((t) => [t.id, t.name]));
   const inviteRoles = roles.filter((r) => (INVITABLE_ROLES as readonly string[]).includes(r.key));
-  const assignableRoles = roles.filter((r) => isOwner || r.key !== 'super_admin');
+  // Un rol propio de la organización también se puede asignar a alguien que ya tiene acceso (no al invitar:
+  // eso sigue igual). Si esta persona no administra roles, ve solo los de sistema, como siempre.
+  const assignableRoles = [...roles, ...allRoles.filter((r) => !r.isSystem)].filter((r) => isOwner || r.key !== 'super_admin');
   const fmt = new Intl.DateTimeFormat('es', { dateStyle: 'medium', timeZone: org.orgTimezone });
 
   return (

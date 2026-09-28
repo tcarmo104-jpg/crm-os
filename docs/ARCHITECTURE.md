@@ -584,3 +584,10 @@ vía `/api/reports/export` (un enlace normal, sin JavaScript).
 Filtros globales (período/personas/equipos/canal), comparación contra el período anterior, gráficos SVG
 propios (sin librería nueva), alertas con enlaces reales, ventas por equipo/región (`teams.region`, ya
 existía). Sin migración. Auditoría completa entregada antes de implementar.
+
+## 35. Roles personalizados y Configuración general (migración 0027, Fase 13) — ver docs/ROLES-Y-CONFIGURACION.md
+
+`create_custom_role` / `rename_custom_role` / `set_custom_role_permissions` / `delete_custom_role`: nunca
+tocan un rol de sistema (`org_id is null`), no se puede borrar un rol en uso. Asignar el rol resultante a
+una persona no necesitó ningún cambio (`changeRole` ya aceptaba cualquier id de rol de la organización).
+Configuración general edita `organizations` directamente (la política RLS ya existía).

@@ -699,3 +699,12 @@ dialog.modal::backdrop { background: rgba(8, 20, 40, 0.45); backdrop-filter: blu
 
 .dash-grid-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--s-4); }
 @media (max-width: 860px) { .dash-grid-2 { grid-template-columns: 1fr; } .dash-filters { position: static; } }
+
+/* ==========================================================================
+   Roles y permisos: cuadrícula módulo × acción, y la lista de permisos especiales
+   ========================================================================== */
+.perm-table th, .perm-table td { text-align: center; }
+.perm-table th:first-child, .perm-table td:first-child { text-align: left; }
+.perm-cell { display: inline-flex; }
+.perm-special-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.perm-special-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); padding: 8px 12px; background: var(--surface-2); border-radius: var(--r-control); font-size: var(--fs-small); }
