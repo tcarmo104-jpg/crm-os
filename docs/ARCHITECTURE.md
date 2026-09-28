@@ -572,3 +572,15 @@ dos clientes con la misma secuencia activa se fusionan.
 despachador de eventos ya existente (`/api/cron/dispatch-events`), con la identidad de quien creó la regla
 (impersonación vía `request.jwt.claims` dentro de una función solo accesible por `service_role`). Depende de
 que ese despachador se ejecute periódicamente (ver docs/DEPLOY.md §5).
+
+## 33. Dashboard, Reportes, Embudo, Desempeño (Fase 10) — ver docs/ANALITICA.md
+
+Sin migración nueva: se apoya en datos y permisos (`reports:read`/`reports:export`) ya existentes desde la
+Fase 1. `lib/analytics.ts` (períodos, embudo con conversión, agrupaciones) es lógica pura. Exportación CSV
+vía `/api/reports/export` (un enlace normal, sin JavaScript).
+
+## 34. Dashboard ejecutivo — ver docs/DASHBOARD-EJECUTIVO.md
+
+Filtros globales (período/personas/equipos/canal), comparación contra el período anterior, gráficos SVG
+propios (sin librería nueva), alertas con enlaces reales, ventas por equipo/región (`teams.region`, ya
+existía). Sin migración. Auditoría completa entregada antes de implementar.
