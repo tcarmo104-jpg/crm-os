@@ -25,7 +25,7 @@ describe('navegación', () => {
     const soon = NAV_GROUPS.find((g) => g.key === 'soon')!;
     expect(soon.items.every((i) => !i.href && i.phase)).toBe(true);
     for (const g of NAV_GROUPS.filter((x) => x.key !== 'soon')) expect(g.items.every((i) => i.href), g.key).toBe(true);
-    expect(NAV_GROUPS.map((g) => g.key)).toEqual(['main', 'commercial', 'settings', 'soon']);
+    expect(NAV_GROUPS.map((g) => g.key)).toEqual(['main', 'commercial', 'analytics', 'settings', 'soon']);
   });
   it('las migas de pan ubican cualquier ruta en su grupo y módulo (el más específico gana)', () => {
     expect(locate('/inbox')).toMatchObject({ group: { label: 'Principal' }, item: { label: 'Inbox' } });

@@ -2,6 +2,7 @@
 
 import { useFormStatus } from 'react-dom';
 import { createContext, useContext, useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import Link from 'next/link';
 import { Icon } from './Icon';
 
 export function SubmitButton({
@@ -109,4 +110,15 @@ function useCloseOnSuccessInternal(ok: boolean | undefined) {
 export function CloseOnSuccess({ ok }: { ok: boolean | undefined }) {
   useCloseOnSuccessInternal(ok);
   return null;
+}
+
+/** Tarjeta de indicador (usada en «Hoy» y en el Dashboard): una cifra, su etiqueta y un dato de apoyo. */
+export function Kpi({ href, label, value, sub, tone }: { href: string; label: string; value: string; sub: string; tone: 'primary' | 'ok' | 'warn' | 'danger' | 'neutral' }) {
+  return (
+    <Link href={href} className={`kpi kpi--${tone}`}>
+      <span className="kpi-label">{label}</span>
+      <span className="kpi-value">{value}</span>
+      <span className="kpi-sub">{sub}</span>
+    </Link>
+  );
 }

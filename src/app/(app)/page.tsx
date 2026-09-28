@@ -16,6 +16,7 @@ import { nextAction, stageFunnel, timeAgo } from '@/lib/today';
 import type { IconName } from '@/lib/nav';
 import { groupTasks } from '@/lib/tasks';
 import { Icon } from '@/components/Icon';
+import { Kpi } from '@/components/ui';
 
 export const metadata: Metadata = { title: 'Hoy' };
 
@@ -228,16 +229,6 @@ export default async function TodayPage() {
 }
 
 /** Indicador principal: cifra grande, etiqueta pequeña y una línea de contexto. Todo el bloque lleva al módulo. */
-function Kpi({ href, label, value, sub, tone }: { href: string; label: string; value: string; sub: string; tone: 'primary' | 'ok' | 'warn' | 'danger' | 'neutral' }) {
-  return (
-    <Link href={href} className={`kpi kpi--${tone}`}>
-      <span className="kpi-label">{label}</span>
-      <span className="kpi-value">{value}</span>
-      <span className="kpi-sub">{sub}</span>
-    </Link>
-  );
-}
-
 /** Estado vacío: qué es esto, por qué está vacío y qué hacer. */
 function Empty({ icon, title, text, href, cta }: { icon: IconName; title: string; text: string; href?: string; cta?: string }) {
   return (

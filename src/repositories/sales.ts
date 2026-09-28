@@ -16,10 +16,13 @@ const map = (r: Raw): SaleRow => ({
   soldAt: r.sold_at, deliveredAt: r.delivered_at, cancelledAt: r.cancelled_at, cancelReason: r.cancel_reason, ownerId: r.owner_id,
 });
 
-export async function listSales(db: ServerSupabase, p: { orgId: string; customerId?: string; cursor?: string; limit?: number }): Promise<Page<SaleRow>> {
-  const limit = Math.min(p.limit ?? 25, 100);
+export async function listSales(db: ServerSupabase, p: { orgId: string; customerId?: string; cursor?: string; limit?: number; soldFrom?: string; soldTo?: string; status?: SaleStatus }): Promise<Page<SaleRow>> {
+  const limit = Math.min(p.limit ?? 25, 2000);
   let q = db.from('sales').select(COLUMNS).eq('org_id', p.orgId);
   if (p.customerId) q = q.eq('customer_id', p.customerId);
+  if (p.soldFrom) q = q.gte('sold_at', p.soldFrom);
+  if (p.soldTo) q = q.lte('sold_at', p.soldTo);
+  if (p.status) q = q.eq('status', p.status);
   const cur = decodeCursor(p.cursor);
   if (cur) q = q.or(`sold_at.lt.${cur.ts},and(sold_at.eq.${cur.ts},id.lt.${cur.id})`);
   const rows = unwrap(await q.order('sold_at', { ascending: false }).order('id', { ascending: false }).limit(limit + 1)) as unknown as Raw[];

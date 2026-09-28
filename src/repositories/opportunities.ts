@@ -19,14 +19,18 @@ const map = (r: Raw): OpportunityRow => ({
 
 export async function listOpportunities(
   db: ServerSupabase,
-  p: { orgId: string; pipelineId?: string; status?: OpportunityStatus; customerId?: string; limit?: number },
+  p: { orgId: string; pipelineId?: string; status?: OpportunityStatus; customerId?: string; limit?: number; closedFrom?: string; closedTo?: string; createdFrom?: string; createdTo?: string },
 ): Promise<OpportunityRow[]> {
   let q = db.from('opportunities').select(COLUMNS).eq('org_id', p.orgId);
   if (p.pipelineId) q = q.eq('pipeline_id', p.pipelineId);
   if (p.status) q = q.eq('status', p.status);
   if (p.customerId) q = q.eq('customer_id', p.customerId);
+  if (p.closedFrom) q = q.gte('closed_at', p.closedFrom);
+  if (p.closedTo) q = q.lte('closed_at', p.closedTo);
+  if (p.createdFrom) q = q.gte('created_at', p.createdFrom);
+  if (p.createdTo) q = q.lte('created_at', p.createdTo);
   const order = p.status && p.status !== 'open' ? 'closed_at' : 'created_at';
-  return (unwrap(await q.order(order, { ascending: false }).order('id', { ascending: false }).limit(Math.min(p.limit ?? 300, 500))) as unknown as Raw[]).map(map);
+  return (unwrap(await q.order(order, { ascending: false }).order('id', { ascending: false }).limit(Math.min(p.limit ?? 300, 2000))) as unknown as Raw[]).map(map);
 }
 
 export async function getOpportunity(db: ServerSupabase, id: string): Promise<OpportunityRow | null> {

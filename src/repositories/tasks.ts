@@ -19,6 +19,7 @@ export async function listTasks(
   p: {
     orgId: string; status?: TaskStatus; statuses?: TaskStatus[]; assigneeId?: string; unassigned?: boolean;
     customerId?: string; opportunityId?: string; type?: string; priority?: string; q?: string; limit?: number;
+    completedFrom?: string; completedTo?: string;
   },
 ): Promise<TaskRow[]> {
   let q = db.from('tasks').select(COLUMNS).eq('org_id', p.orgId);
@@ -30,10 +31,12 @@ export async function listTasks(
   if (p.opportunityId) q = q.eq('opportunity_id', p.opportunityId);
   if (p.type) q = q.eq('type', p.type);
   if (p.priority) q = q.eq('priority', p.priority);
+  if (p.completedFrom) q = q.gte('completed_at', p.completedFrom);
+  if (p.completedTo) q = q.lte('completed_at', p.completedTo);
   if (p.q && p.q.trim()) { const t = p.q.trim().replace(/[%_,]/g, ''); q = q.or(`title.ilike.%${t}%,description.ilike.%${t}%`); }
   const closed = p.status === 'done' || p.status === 'cancelled';
   q = closed ? q.order('completed_at', { ascending: false, nullsFirst: false }) : q.order('due_at', { ascending: true, nullsFirst: false });
-  return (unwrap(await q.order('id').limit(Math.min(p.limit ?? 200, 500))) as unknown as Raw[]).map(map);
+  return (unwrap(await q.order('id').limit(Math.min(p.limit ?? 200, 2000))) as unknown as Raw[]).map(map);
 }
 
 export async function countOverdue(db: ServerSupabase, orgId: string, assigneeId: string): Promise<number> {

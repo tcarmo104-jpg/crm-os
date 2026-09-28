@@ -163,3 +163,14 @@ export function decodeCsvBuffer(buf: ArrayBuffer): string | null {
     return new TextDecoder('windows-1252').decode(bytes);
   }
 }
+
+/** Arma un CSV de salida simple (separado por comas, con comillas cuando hace falta). Para exportar
+ * reportes; distinto de la lectura de arriba (que es para importar leads). */
+export function toCsv(headers: string[], rows: (string | number)[][]): string {
+  const cell = (v: string | number): string => {
+    const s = String(v ?? '');
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [headers.map(cell).join(','), ...rows.map((r) => r.map(cell).join(','))];
+  return lines.join('\r\n');
+}

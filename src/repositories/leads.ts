@@ -18,7 +18,7 @@ export interface LeadFilters {
   resolution?: string; ownerId?: string; unassigned?: boolean; from?: string; to?: string; q?: string;
 }
 export async function listLeads(db: ServerSupabase, p: LeadFilters): Promise<Page<LeadRow>> {
-  const limit = Math.min(p.limit ?? 25, 100);
+  const limit = Math.min(p.limit ?? 25, 2000);
   let query = db.from('leads').select(COLUMNS).eq('org_id', p.orgId);
   if (p.customerId) query = query.eq('customer_id', p.customerId);
   if (p.status) query = query.eq('status', p.status);
