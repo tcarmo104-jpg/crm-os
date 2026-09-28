@@ -7,7 +7,7 @@ export default function LegalLayout({ children }: { children: ReactNode }) {
     <div className="legal">
       <header className="legal-head"><span className="legal-mark" aria-hidden="true" /><span>CRM OS</span></header>
       <main className="legal-body">{children}</main>
-      <footer className="legal-foot"><a href="/privacidad">Política de privacidad</a> · <a href="/eliminacion-de-datos">Eliminación de datos</a></footer>
+      <footer className="legal-foot"><a href="/privacidad">Política de privacidad</a> · <a href="/terminos">Términos y condiciones</a> · <a href="/eliminacion-de-datos">Eliminación de datos</a></footer>
     </div>
   );
 }
