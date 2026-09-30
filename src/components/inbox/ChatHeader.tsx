@@ -8,16 +8,16 @@ import { Ico } from './icons';
 type Action = (fd: FormData) => Promise<void>;
 
 export function ChatHeader({
-  query, conversationId, customerId, name, phone, channel, status, needsReply, ownerId, ownerName, advisors, canAssign, canUpdate, actions,
+  query, conversationId, customerId, name, avatarUrl, phone, channel, status, needsReply, ownerId, ownerName, advisors, canAssign, canUpdate, actions,
 }: {
-  query: InboxQuery; conversationId: string; customerId: string; name: string; phone: string; channel: ChannelKind; status: 'open' | 'closed';
+  query: InboxQuery; conversationId: string; customerId: string; name: string; avatarUrl?: string | null; phone: string; channel: ChannelKind; status: 'open' | 'closed';
   needsReply: boolean; ownerId: string | null; ownerName: string | null; advisors: { id: string; name: string }[]; canAssign: boolean; canUpdate: boolean;
   actions: { assign: Action; status: Action };
 }) {
   return (
     <header className="ib-chat-head">
       <Link href={inboxHref(query, { c: '' })} scroll={false} className="ib-icon-btn ib-only-mobile" aria-label="Volver a la lista de conversaciones"><Ico name="chevronLeft" size={20} /></Link>
-      <InboxAvatar name={name} channel={channel} size={40} />
+      <InboxAvatar name={name} channel={channel} avatarUrl={avatarUrl} size={40} />
       <div className="ib-chat-id">
         <h2 className="ib-chat-name"><Link href={`/customers/${customerId}`} title="Abrir la ficha completa del cliente">{name}</Link></h2>
         <p className="ib-chat-sub">

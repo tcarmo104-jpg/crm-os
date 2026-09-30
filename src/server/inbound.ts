@@ -2,7 +2,7 @@ import 'server-only';
 import { parseWebhook } from '@/lib/meta';
 import { isSocialPayload, parseSocialWebhook } from '@/lib/social';
 import { openSecret } from '@/lib/secrets';
-import { fetchContactName } from './meta-social';
+import { fetchContactProfile } from './meta-social';
 import { registerAttachments } from './media';
 import type { createAdminClient } from './supabase-admin';
 
@@ -123,7 +123,8 @@ async function processSocialPayload(admin: Admin, payload: unknown, deps: { fetc
   return sum;
 }
 
-/** El webhook de Meta no trae el nombre: se pide una vez al abrir la conversación. Mejor esfuerzo, nunca hace fallar el webhook. */
+/** El webhook de Meta no trae el nombre ni la foto: se piden una vez al abrir la conversación, en la misma
+ * llamada. Mejor esfuerzo, nunca hace fallar el webhook (si falla, se queda el nombre provisional y sin foto). */
 async function fillContactName(admin: Admin, kind: string, accountId: string, thread: string, conversationId: string, deps: { fetchImpl?: typeof fetch }) {
   try {
     const ch = await admin.from('channels').select('id').eq('kind', kind).eq('external_id', accountId).maybeSingle();
@@ -131,9 +132,9 @@ async function fillContactName(admin: Admin, kind: string, accountId: string, th
     if (!id) return;
     const cred = await admin.rpc('channel_credentials', { p_channel: id });
     if (typeof cred.data !== 'string' || !cred.data) return;
-    const name = await fetchContactName(kind as 'facebook' | 'instagram', thread, openSecret(cred.data), deps);
-    if (name) await admin.rpc('set_contact_profile', { p_conversation: conversationId, p_name: name });
-  } catch { /* se queda el nombre provisional */ }
+    const profile = await fetchContactProfile(kind as 'facebook' | 'instagram', thread, openSecret(cred.data), deps);
+    if (profile?.name || profile?.avatarUrl) await admin.rpc('set_contact_profile', { p_conversation: conversationId, p_name: profile.name, p_avatar_url: profile.avatarUrl });
+  } catch { /* se queda el nombre provisional y sin foto */ }
 }
 
 // ---------------------------------------------------------------------------------------------- aislamiento por organización

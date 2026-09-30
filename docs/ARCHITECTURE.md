@@ -591,3 +591,10 @@ existía). Sin migración. Auditoría completa entregada antes de implementar.
 tocan un rol de sistema (`org_id is null`), no se puede borrar un rol en uso. Asignar el rol resultante a
 una persona no necesitó ningún cambio (`changeRole` ya aceptaba cualquier id de rol de la organización).
 Configuración general edita `organizations` directamente (la política RLS ya existía).
+
+## 36. Foto de perfil y notas de voz en el Inbox — ver docs/FOTO-PERFIL-Y-AUDIO.md
+
+`customers.avatar_url` (Facebook/Instagram vía Graph API, en la misma llamada que ya pedía el nombre;
+WhatsApp no lo permite por su API). Grabar audio reutiliza el flujo de subida ya existente; una limitación
+real de los navegadores (Chrome graba webm, que WhatsApp no acepta) se maneja con un aviso claro, no con un
+envío fallido silencioso.

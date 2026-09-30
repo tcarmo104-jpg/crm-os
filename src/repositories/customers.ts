@@ -5,10 +5,10 @@ import { nameKey } from '@/lib/identity';
 import type { CustomerRow, IdentifierRow, Page, TimelineEvent } from '@/lib/types';
 
 const COLUMNS =
-  'id, org_id, type, full_name, company_id, owner_id, team_id, city, country, address, preferred_channel, lifecycle_stage, do_not_contact, dnc_reason, dnc_at, custom_fields, first_contact_at, created_at';
+  'id, org_id, type, full_name, avatar_url, company_id, owner_id, team_id, city, country, address, preferred_channel, lifecycle_stage, do_not_contact, dnc_reason, dnc_at, custom_fields, first_contact_at, created_at';
 
 interface Raw {
-  id: string; org_id: string; type: 'person' | 'company'; full_name: string; company_id: string | null;
+  id: string; org_id: string; type: 'person' | 'company'; full_name: string; avatar_url: string | null; company_id: string | null;
   owner_id: string | null; team_id: string | null; city: string | null; country: string | null; address: string | null;
   preferred_channel: CustomerRow['preferredChannel']; lifecycle_stage: string; do_not_contact: boolean;
   dnc_reason: string | null; dnc_at: string | null; custom_fields: Record<string, unknown>;
@@ -16,7 +16,7 @@ interface Raw {
 }
 
 const map = (r: Raw): CustomerRow => ({
-  id: r.id, orgId: r.org_id, type: r.type, fullName: r.full_name, companyId: r.company_id, ownerId: r.owner_id,
+  id: r.id, orgId: r.org_id, type: r.type, fullName: r.full_name, avatarUrl: r.avatar_url, companyId: r.company_id, ownerId: r.owner_id,
   teamId: r.team_id, city: r.city, country: r.country, address: r.address, preferredChannel: r.preferred_channel,
   lifecycleStage: r.lifecycle_stage, doNotContact: r.do_not_contact, dncReason: r.dnc_reason, dncAt: r.dnc_at,
   customFields: r.custom_fields ?? {}, firstContactAt: r.first_contact_at, createdAt: r.created_at,

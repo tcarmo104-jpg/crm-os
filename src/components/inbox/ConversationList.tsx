@@ -7,7 +7,7 @@ import { InboxAvatar } from './Avatar';
 import { Ico } from './icons';
 import { TagPill } from './TagPill';
 
-export interface ListRow { conv: ConversationRow; name: string; ownerName: string | null; tags: TagRow[]; channel: ChannelKind }
+export interface ListRow { conv: ConversationRow; name: string; avatarUrl: string | null; ownerName: string | null; tags: TagRow[]; channel: ChannelKind }
 
 export function ConversationList({
   query, rows, nextHref, counts, tags, advisors, channels, timeZone, hasChannels, canManageChannels,
@@ -99,9 +99,9 @@ export function ConversationList({
             <p><strong>{query.q || advanced > 0 || query.tab !== 'all' ? 'No hay conversaciones con estos filtros.' : 'Todavía no hay conversaciones.'}</strong></p>
             {query.q || advanced > 0 || query.tab !== 'all' ? <Link className="ib-btn ib-btn--ghost ib-btn--sm" href="/inbox" scroll={false}>Ver todas</Link> : <p className="ib-muted">Cuando un cliente escriba por WhatsApp aparecerá aquí.</p>}
           </div>
-        ) : rows.map(({ conv, name, ownerName, tags: rowTags, channel }) => (
+        ) : rows.map(({ conv, name, avatarUrl, ownerName, tags: rowTags, channel }) => (
           <Link key={conv.id} href={inboxHref(query, { c: conv.id })} scroll={false} className={`ib-row${conv.id === query.c ? ' is-selected' : ''}${conv.unread ? ' is-unread' : ''}`} aria-current={conv.id === query.c ? 'true' : undefined}>
-            <InboxAvatar name={name} channel={channel} size={42} />
+            <InboxAvatar name={name} channel={channel} avatarUrl={avatarUrl} size={42} />
             <span className="ib-row-main">
               <span className="ib-row-top">
                 <span className="ib-row-name">{name}</span>

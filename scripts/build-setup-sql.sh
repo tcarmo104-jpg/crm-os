@@ -88,6 +88,11 @@ sentinel() { case "$1" in 6) echo custom_field_definitions;; 7) echo customers;;
       echo "    raise exception 'Este proyecto YA tiene instalada la migración 0027 (existe la función create_custom_role). No ejecutes este archivo: avísame.';"
       echo "  end if;"
     fi
+    if [ "$FROM" -ge 28 ] && [ "$FROM" -le 29 ]; then
+      echo "  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'customers' and column_name = 'avatar_url') then"
+      echo "    raise exception 'Este proyecto YA tiene instalada la migración 0028 (existe customers.avatar_url). No ejecutes este archivo: avísame.';"
+      echo "  end if;"
+    fi
     if [ "$FROM" = "23" ]; then
       echo "  if to_regprocedure('public.start_task(uuid)') is not null then"
       echo "    raise exception 'Este proyecto YA tiene instalada la migración 0023 (existe la función start_task). No ejecutes este archivo: avísame.';"

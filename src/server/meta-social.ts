@@ -62,10 +62,20 @@ export async function subscribePage(pageId: string, token: string, o: GraphOpts 
 
 /** Nombre del contacto (Meta no lo incluye en el webhook). Mejor esfuerzo: si falla, se queda el nombre provisional. */
 export async function fetchContactName(kind: SocialKind, contactId: string, token: string, o: GraphOpts = {}): Promise<string | null> {
+  const p = await fetchContactProfile(kind, contactId, token, o);
+  return p?.name ?? null;
+}
+
+export interface ContactProfile { name: string | null; avatarUrl: string | null }
+/** Nombre y foto del contacto en una sola llamada a Meta (Meta no incluye ninguno de los dos en el webhook).
+ * Mejor esfuerzo: si falla, ambos quedan en null y no se toca lo que ya había. */
+export async function fetchContactProfile(kind: SocialKind, contactId: string, token: string, o: GraphOpts = {}): Promise<ContactProfile | null> {
   if (!ID.test(contactId)) return null;
-  const r = await graphCall<{ name?: string; username?: string; first_name?: string; last_name?: string }>('GET', contactId, token, { ...o, params: { fields: kind === 'instagram' ? 'name,username' : 'name' } });
+  const r = await graphCall<{ name?: string; username?: string; profile_pic?: string }>('GET', contactId, token, { ...o, params: { fields: kind === 'instagram' ? 'name,username,profile_pic' : 'name,profile_pic' } });
   if (!r.ok) return null;
-  return (r.data.name ?? r.data.username ?? null)?.trim().slice(0, 160) || null;
+  const name = (r.data.name ?? r.data.username ?? null)?.trim().slice(0, 160) || null;
+  const avatarUrl = typeof r.data.profile_pic === 'string' && r.data.profile_pic.startsWith('https://') ? r.data.profile_pic : null;
+  return { name, avatarUrl };
 }
 
 export interface SocialSend { token: string; to: string; body: string; fetchImpl?: typeof fetch; timeoutMs?: number }

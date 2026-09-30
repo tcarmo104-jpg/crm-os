@@ -61,6 +61,7 @@ textarea.ib-input { height: auto; padding: 8px 10px; resize: vertical; }
 .ib-avatar { --h: 250; position: relative; flex: none; display: inline-grid; place-items: center; border-radius: 50%; font-weight: 600; letter-spacing: 0.02em; background: hsl(var(--h) 65% 91%); color: hsl(var(--h) 55% 30%); user-select: none; }
 [data-theme='dark'] .ib-avatar { background: hsl(var(--h) 35% 26%); color: hsl(var(--h) 80% 86%); }
 .ib-avatar-chan { position: absolute; right: -3px; bottom: -3px; line-height: 0; border: 2px solid var(--ib-panel); border-radius: 50%; }
+.ib-avatar-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
 .ib-row.is-selected .ib-avatar-chan { border-color: var(--ib-select); }
 .ib-chan { display: inline-grid; place-items: center; border-radius: 50%; color: #fff; flex: none; }
 .ib-chan--whatsapp { background: var(--ch-whatsapp); }
@@ -182,6 +183,11 @@ textarea.ib-input { height: auto; padding: 8px 10px; resize: vertical; }
 .ib-composer--note .ib-textarea { background: color-mix(in srgb, var(--ib-note) 55%, var(--ib-bg)); border-color: var(--ib-note-line); }
 .ib-textarea:disabled { background: var(--ib-canvas); cursor: not-allowed; }
 .ib-composer-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.ib-record-bar { display: flex; align-items: center; gap: 10px; margin-top: 8px; height: 34px; font-size: 13px; font-weight: 600; color: var(--ib-text); }
+.ib-record-dot { width: 10px; height: 10px; border-radius: 50%; background: #e0303d; flex: none; animation: ib-record-pulse 1.2s ease-in-out infinite; }
+.ib-record-bar > button { margin-left: auto; }
+.ib-record-bar > button + button { margin-left: 0; }
+@keyframes ib-record-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
 .ib-tools { display: flex; align-items: center; gap: 2px; }
 .ib-send { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 16px; border: 0; border-radius: 9px; background: var(--ib-accent); color: var(--ib-on-accent); font-weight: 700; font-size: 13px; cursor: pointer; }
 .ib-send:hover:not(:disabled) { background: var(--ib-accent-h); }

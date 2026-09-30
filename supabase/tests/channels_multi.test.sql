@@ -193,7 +193,7 @@ select t.ok('las funciones internas no las ejecuta ningún usuario ni anónimo',
   and not has_function_privilege('authenticated', 'public.apply_channel_status(text, text, text, text, timestamptz, text, text)', 'EXECUTE')
   and not has_function_privilege('authenticated', 'public.touch_channel(text, text, text)', 'EXECUTE')
   and not has_function_privilege('authenticated', 'public.merge_channel_metadata(uuid, jsonb)', 'EXECUTE')
-  and not has_function_privilege('authenticated', 'public.set_contact_profile(uuid, text)', 'EXECUTE')
+  and not has_function_privilege('authenticated', 'public.set_contact_profile(uuid, text, text)', 'EXECUTE')
   and not has_function_privilege('anon', 'public.connect_channel(uuid, text, text, text, text, text, text, jsonb)', 'EXECUTE'));
 select t.ok('todas las tablas tienen RLS', (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind in ('r', 'p') and not c.relrowsecurity) = 0);
 

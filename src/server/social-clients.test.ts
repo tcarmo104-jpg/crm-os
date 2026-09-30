@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { exchangeMetaCode, extendMetaToken, fetchContactName, listPages, pageSubscription, sendSocial, subscribePage } from './meta-social';
+import { exchangeMetaCode, extendMetaToken, fetchContactName, fetchContactProfile, listPages, pageSubscription, sendSocial, subscribePage } from './meta-social';
 import { exchangeGoogleCode, getGmailMessage, listHistory, refreshGoogleToken, sendGmailReply } from './gmail';
 
 type Call = { url: string; method: string; headers: Record<string, string>; body: string };
@@ -62,6 +62,24 @@ describe('suscripción de la página y perfil del contacto', () => {
     expect(await fetchContactName('instagram', '5500000000000001', 'T', { fetchImpl: fake(() => ({ body: { username: 'ana_g' } })).fetchImpl })).toBe('ana_g');
     expect(await fetchContactName('facebook', '5500000000000001', 'T', { fetchImpl: fake(() => 'network').fetchImpl })).toBeNull();
     expect(await fetchContactName('facebook', 'abc', 'T', { fetchImpl: fake(() => ({ body: {} })).fetchImpl })).toBeNull();
+  });
+  it('fetchContactProfile trae el nombre y la foto en una sola llamada (no dos)', async () => {
+    const f = fake(() => ({ body: { name: 'Ana Gómez', profile_pic: 'https://scontent.fbcdn.net/v/foto.jpg' } }));
+    const r = await fetchContactProfile('facebook', '5500000000000001', 'T', { fetchImpl: f.fetchImpl });
+    expect(r).toEqual({ name: 'Ana Gómez', avatarUrl: 'https://scontent.fbcdn.net/v/foto.jpg' });
+    expect(f.calls).toHaveLength(1);
+    expect(f.calls[0]!.url).toMatch(/fields=name%2Cprofile_pic/);
+  });
+  it('una foto que no llega en https se descarta (nunca se guarda algo que no sea una URL segura)', async () => {
+    const r = await fetchContactProfile('facebook', '5500000000000001', 'T', { fetchImpl: fake(() => ({ body: { name: 'Ana', profile_pic: 'http://inseguro.com/x.jpg' } })).fetchImpl });
+    expect(r).toEqual({ name: 'Ana', avatarUrl: null });
+  });
+  it('sin foto en la respuesta, avatarUrl queda en null (no revienta)', async () => {
+    const r = await fetchContactProfile('instagram', '5500000000000001', 'T', { fetchImpl: fake(() => ({ body: { username: 'ana_g' } })).fetchImpl });
+    expect(r).toEqual({ name: 'ana_g', avatarUrl: null });
+  });
+  it('si Meta falla, devuelve null (mejor esfuerzo, nunca hace fallar el webhook)', async () => {
+    expect(await fetchContactProfile('facebook', '5500000000000001', 'T', { fetchImpl: fake(() => 'network').fetchImpl })).toBeNull();
   });
 });
 

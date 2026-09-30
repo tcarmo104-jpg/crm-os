@@ -127,11 +127,11 @@ type Fail = { ok: false; message: string };
 const failure = (e: unknown): Fail => ({ ok: false, message: toUserMessage(e) });
 
 /** Paso 1: valida el archivo con las reglas del canal y entrega el enlace firmado para subirlo directo al almacén privado. */
-export async function prepareAttachmentAction(input: { conversationId: string; fileName: string; mime: string; size: number }): Promise<PrepareResult | Fail> {
+export async function prepareAttachmentAction(input: { conversationId: string; fileName: string; mime: string; size: number; isVoice?: boolean }): Promise<PrepareResult | Fail> {
   try {
     const { db } = await actionContext();
     return await prepareUpload(db, createSupabaseMediaStore(createAdminClient()), {
-      conversationId: String(input.conversationId), fileName: String(input.fileName ?? ''), mime: String(input.mime ?? ''), size: Number(input.size),
+      conversationId: String(input.conversationId), fileName: String(input.fileName ?? ''), mime: String(input.mime ?? ''), size: Number(input.size), isVoice: Boolean(input.isVoice),
     });
   } catch (e) { return failure(e); }
 }

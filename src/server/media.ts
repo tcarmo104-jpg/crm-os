@@ -274,12 +274,14 @@ export type PrepareResult = { ok: true; uploadId: string; path: string; token: s
  * Paso 1: se valida lo que se puede saber SIN el contenido (nombre, tipo, tamaño, reglas del canal), se reserva el lugar y se entrega
  * un enlace firmado para que el navegador suba el archivo directo al bucket privado.
  */
-export async function prepareUpload(db: ServerSupabase, store: MediaStore, i: { conversationId: string; fileName: string; mime: string; size: number }): Promise<PrepareResult> {
+export async function prepareUpload(db: ServerSupabase, store: MediaStore, i: { conversationId: string; fileName: string; mime: string; size: number; isVoice?: boolean }): Promise<PrepareResult> {
   const channel = await channelOf(db, i.conversationId);
   const name = sanitizeFileName(i.fileName);
   const check = validateOutgoing({ channel, fileName: name, mime: i.mime, size: i.size });
   if (!check.ok) return { ok: false, code: check.code, message: check.message };
-  const row = unwrap(await db.rpc('create_attachment_upload', { p_conversation: i.conversationId, p_file_name: name, p_mime: check.mime, p_size: i.size })) as unknown as { id: string; path: string };
+  // Una nota de voz solo tiene sentido para un audio: pedirlo para otra cosa se ignora (nunca se marca falsamente).
+  const isVoice = Boolean(i.isVoice) && check.kind === 'audio';
+  const row = unwrap(await db.rpc('create_attachment_upload', { p_conversation: i.conversationId, p_file_name: name, p_mime: check.mime, p_size: i.size, p_is_voice: isVoice })) as unknown as { id: string; path: string };
   const up = await store.signedUploadUrl(row.path);
   if (!up) return { ok: false, code: 'storage_unavailable', message: 'No se pudo preparar la subida del archivo. Inténtalo de nuevo.' };
   return { ok: true, uploadId: row.id, path: row.path, token: up.token };

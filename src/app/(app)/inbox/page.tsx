@@ -75,10 +75,11 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
 
   const custIds = [...new Set(page.items.map((c) => c.customerId))];
   const [customers, tagMap] = await Promise.all([getCustomersByIds(db, custIds), tagsByCustomer(db, custIds)]);
-  const custName = new Map(customers.map((c) => [c.id, c.fullName]));
+  const custById = new Map(customers.map((c) => [c.id, c]));
   const rows: ListRow[] = page.items.map((c) => ({
     conv: conversation && c.id === conversation.id ? conversation : c,
-    name: custName.get(c.customerId) ?? c.contactName ?? (channelKind.get(c.channelId) === 'whatsapp' ? `+${c.threadKey}` : c.threadKey),
+    name: custById.get(c.customerId)?.fullName ?? c.contactName ?? (channelKind.get(c.channelId) === 'whatsapp' ? `+${c.threadKey}` : c.threadKey),
+    avatarUrl: custById.get(c.customerId)?.avatarUrl ?? null,
     ownerName: c.ownerId ? memberName(c.ownerId) : null,
     tags: tagMap.get(c.customerId) ?? [],
     channel: channelKind.get(c.channelId) ?? 'whatsapp',
@@ -127,7 +128,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
       chat = (
         <>
           <ChatHeader
-            query={query} conversationId={conversation.id} customerId={ctx.customer.id} name={name} phone={phone} channel={kindOfConv}
+            query={query} conversationId={conversation.id} customerId={ctx.customer.id} name={name} avatarUrl={ctx.customer.avatarUrl} phone={phone} channel={kindOfConv}
             status={conversation.status} needsReply={conversation.needsReply} ownerId={ctx.customer.ownerId} ownerName={ctx.customer.ownerId ? memberName(ctx.customer.ownerId) : null}
             advisors={advisors} canAssign={canAssign} canUpdate={canUpdate} actions={{ assign: assignOwnerAction, status: setConversationStatusAction }}
           />

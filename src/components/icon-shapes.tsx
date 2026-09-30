@@ -14,6 +14,7 @@ export const SHAPES: Record<string, ReactNode> = {
   smile: <><circle cx="12" cy="12" r="8.5" /><path d="M8.5 14a4 4 0 0 0 7 0M9 9.5h.01M15 9.5h.01" /></>,
   bolt: <path d="M13 2.5 5 13.5h6l-1 8 8-11h-6z" />,
   send: <path d="M21 3 10.5 13.5M21 3l-6.5 18-4-7.5L3 9.5z" />,
+  mic: <><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M6 11a6 6 0 0 0 12 0M12 19v2M9 21h6" /></>,
   chevronRight: <path d="m9 5 7 7-7 7" />,
   chevronLeft: <path d="m15 5-7 7 7 7" />,
   chevronDown: <path d="m5 9 7 7 7-7" />,

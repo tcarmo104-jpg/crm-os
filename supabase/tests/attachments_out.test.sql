@@ -168,7 +168,7 @@ select t.ok('las funciones del servidor no las ejecuta ningún usuario ni anóni
   and not has_function_privilege('authenticated', 'public.get_attachment_upload(uuid, uuid, uuid)', 'EXECUTE')
   and not has_function_privilege('authenticated', 'public.purge_stale_uploads(integer)', 'EXECUTE')
   and not has_function_privilege('anon', 'public.queue_media_message(uuid, uuid[], text)', 'EXECUTE')
-  and not has_function_privilege('anon', 'public.create_attachment_upload(uuid, text, text, bigint)', 'EXECUTE'));
+  and not has_function_privilege('anon', 'public.create_attachment_upload(uuid, text, text, bigint, boolean)', 'EXECUTE'));
 select t.ok('todas las tablas tienen RLS', (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind in ('r', 'p') and not c.relrowsecurity) = 0);
 
 rollback;

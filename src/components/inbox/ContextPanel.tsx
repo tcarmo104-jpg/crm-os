@@ -49,7 +49,7 @@ export function ContextPanel({
     <aside className="ib-context" aria-label="Ficha del cliente">
       <div className="ib-context-close"><ContextToggle variant="close" /></div>
       <header className="ib-ctx-head">
-        <InboxAvatar name={c.fullName} size={64} />
+        <InboxAvatar name={c.fullName} avatarUrl={c.avatarUrl} size={64} />
         <h2><Link href={`/customers/${c.id}`}>{c.fullName}</Link></h2>
         {ctx.tags[0] ? <TagPill tag={ctx.tags[0]} /> : null}
         {c.doNotContact ? <span className="ib-state ib-state--danger">No contactar</span> : null}

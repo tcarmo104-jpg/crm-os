@@ -17,13 +17,13 @@ export interface ComposerProps {
   actions: { send: Action; note: Action; template: Action; createQuick: Action; deleteQuick: Action };
   /** Envío de archivos. Si no se pasa, los botones 📎 quedan deshabilitados. */
   attach?: {
-    prepare: (i: { conversationId: string; fileName: string; mime: string; size: number }) => Promise<{ ok: true; uploadId: string; path: string; token: string } | { ok: false; message: string }>;
+    prepare: (i: { conversationId: string; fileName: string; mime: string; size: number; isVoice?: boolean }) => Promise<{ ok: true; uploadId: string; path: string; token: string } | { ok: false; message: string }>;
     cancel: (uploadId: string) => Promise<void>;
     send: (i: { conversationId: string; uploadIds: string[]; caption?: string }) => Promise<{ ok: true; note?: string } | { ok: false; message: string }>;
   };
 }
 
-interface PendingFile { key: string; name: string; size: number; mime: string; preview: string | null; status: 'uploading' | 'ready' | 'error'; uploadId?: string; error?: string }
+interface PendingFile { key: string; name: string; size: number; mime: string; preview: string | null; status: 'uploading' | 'ready' | 'error'; uploadId?: string; error?: string; isVoice?: boolean }
 const BUCKET = 'inbox-media';
 
 const EMOJIS = ['😀', '😊', '😂', '🙂', '😉', '😍', '🤗', '🤔', '😅', '😢', '😮', '🙏', '👍', '👌', '👏', '🙌', '💪', '🔥', '⭐', '✨', '🎉', '❤️', '💜', '✅',
@@ -46,6 +46,13 @@ export function Composer(p: ComposerProps) {
   const [fileError, setFileError] = useState<string | null>(null);
   const filesRef = useRef<PendingFile[]>([]);
   filesRef.current = files;
+  const [recording, setRecording] = useState(false);
+  const [recSeconds, setRecSeconds] = useState(0);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recChunksRef = useRef<Blob[]>([]);
+  const recStreamRef = useRef<MediaStream | null>(null);
+  const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => () => { recStreamRef.current?.getTracks().forEach((t) => t.stop()); if (recTimerRef.current) clearInterval(recTimerRef.current); }, []);
   // El navegador sube directo al bucket con un enlace firmado por el servidor (sin sesión ni llaves propias).
   const storage = useMemo(() => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '', { auth: { persistSession: false, autoRefreshToken: false } }).storage.from(BUCKET), []);
   useEffect(() => () => { for (const f of filesRef.current) if (f.preview) URL.revokeObjectURL(f.preview); }, []);
@@ -77,7 +84,7 @@ export function Composer(p: ComposerProps) {
   const patch = (key: string, change: Partial<PendingFile>) => setFiles((prev) => prev.map((f) => (f.key === key ? { ...f, ...change } : f)));
   const drop = (f: PendingFile) => { if (f.preview) URL.revokeObjectURL(f.preview); if (f.uploadId) void p.attach?.cancel(f.uploadId); setFiles((prev) => prev.filter((x) => x.key !== f.key)); setFileError(null); };
 
-  const addFiles = async (list: FileList | File[] | null, only?: MediaKind) => {
+  const addFiles = async (list: FileList | File[] | null, only?: MediaKind, isVoice = false) => {
     if (!p.attach || !list) return;
     const picked = Array.from(list);
     if (picked.length === 0) return;
@@ -87,12 +94,15 @@ export function Composer(p: ComposerProps) {
     for (const file of picked) {
       const mime = file.type || mimeFromName(file.name);
       const check = validateOutgoing({ channel: p.channel, fileName: file.name, mime, size: file.size });
-      if (!check.ok || (only && check.kind !== only)) { setFileError(check.ok ? 'Aquí solo puedes adjuntar imágenes.' : check.message); continue; }
+      if (!check.ok || (only && check.kind !== only)) {
+        setFileError(check.ok ? 'Aquí solo puedes adjuntar imágenes.' : isVoice ? `Tu navegador grabó el audio en un formato que ${CHANNEL_LABEL[p.channel]} no acepta. Prueba grabar desde otro navegador (Firefox suele funcionar), o adjunta una nota de voz ya grabada como archivo.` : check.message);
+        continue;
+      }
       const key = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const preview = check.kind === 'image' && check.mime !== 'image/heic' ? URL.createObjectURL(file) : null;
-      setFiles((prev) => [...prev, { key, name: file.name, size: file.size, mime: check.mime, preview, status: 'uploading' }]);
+      setFiles((prev) => [...prev, { key, name: file.name, size: file.size, mime: check.mime, preview, status: 'uploading', isVoice }]);
       try {
-        const prep = await p.attach.prepare({ conversationId: p.conversationId, fileName: file.name, mime: check.mime, size: file.size });
+        const prep = await p.attach.prepare({ conversationId: p.conversationId, fileName: file.name, mime: check.mime, size: file.size, isVoice });
         if (!prep.ok) { patch(key, { status: 'error', error: prep.message }); setFileError(prep.message); continue; }
         patch(key, { uploadId: prep.uploadId });
         const up = await storage.uploadToSignedUrl(prep.path, prep.token, file, { contentType: check.mime });
@@ -101,6 +111,53 @@ export function Composer(p: ComposerProps) {
       } catch { patch(key, { status: 'error', error: 'No se pudo subir el archivo. Revisa tu conexión e inténtalo de nuevo.' }); setFileError('No se pudo subir el archivo. Revisa tu conexión e inténtalo de nuevo.'); }
     }
   };
+  // Formato preferido para grabar: audio/ogg (lo que WhatsApp/Messenger/Instagram esperan de una nota de voz)
+  // si el navegador lo sabe grabar (Firefox); si no, lo mejor que el navegador ofrezca (Chrome/Edge/Safari
+  // graban en otro formato — se valida igual al terminar, y si ese canal no lo acepta se avisa con claridad
+  // en vez de fingir que se envió).
+  const RECORD_MIME_CANDIDATES = ['audio/ogg;codecs=opus', 'audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'];
+  const MAX_RECORD_SECONDS = 300;
+
+  const startRecording = async () => {
+    if (recording || !canAttach) return;
+    setFileError(null);
+    if (typeof window === 'undefined' || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setFileError('Este navegador no puede grabar audio.'); return;
+    }
+    let stream: MediaStream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch { setFileError('No se pudo acceder al micrófono. Revisa los permisos del navegador para este sitio.'); return; }
+    const mimeType = RECORD_MIME_CANDIDATES.find((m) => MediaRecorder.isTypeSupported(m));
+    const rec = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    recChunksRef.current = [];
+    rec.ondataavailable = (e) => { if (e.data.size > 0) recChunksRef.current.push(e.data); };
+    rec.onstop = () => {
+      stream.getTracks().forEach((t) => t.stop());
+      if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
+      const blob = new Blob(recChunksRef.current, { type: rec.mimeType || mimeType || 'audio/webm' });
+      recChunksRef.current = [];
+      setRecording(false); setRecSeconds(0);
+      if (blob.size === 0) return;   // se canceló antes de grabar nada real
+      const ext = blob.type.includes('ogg') ? 'ogg' : blob.type.includes('mp4') ? 'm4a' : 'webm';
+      void addFiles([new File([blob], `nota-de-voz.${ext}`, { type: blob.type })], 'audio', true);
+    };
+    recorderRef.current = rec; recStreamRef.current = stream;
+    rec.start();
+    setRecording(true); setRecSeconds(0);
+    recTimerRef.current = setInterval(() => setRecSeconds((s) => { if (s + 1 >= MAX_RECORD_SECONDS) { rec.stop(); return s; } return s + 1; }), 1000);
+  };
+  /** Detiene y ENVÍA lo grabado (pasa a la vista previa, como cualquier archivo adjuntado). */
+  const stopRecording = () => recorderRef.current?.state === 'recording' && recorderRef.current.stop();
+  /** Descarta la grabación sin agregarla a los adjuntos. */
+  const cancelRecording = () => {
+    const rec = recorderRef.current;
+    if (rec) { rec.ondataavailable = null; rec.onstop = () => { recStreamRef.current?.getTracks().forEach((t) => t.stop()); }; if (rec.state === 'recording') rec.stop(); }
+    if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
+    recChunksRef.current = [];
+    setRecording(false); setRecSeconds(0);
+  };
+  const fmtRecTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+
   const openPicker = (only?: MediaKind) => {
     const el = picker.current; if (!el) return;
     el.accept = acceptFor(p.channel, only); el.multiple = rules.maxFiles > 1; el.dataset.only = only ?? ''; el.value = ''; el.click();
@@ -166,20 +223,30 @@ export function Composer(p: ComposerProps) {
           onPaste={(e) => { if (canAttach && e.clipboardData.files.length > 0) { e.preventDefault(); void addFiles(e.clipboardData.files); } }}
           onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); if (text.trim() || ready.length > 0) e.currentTarget.form?.requestSubmit(); } }}
         />
-        <div className="ib-composer-bar">
-          <div className="ib-tools">
-            <button type="button" className="ib-icon-btn" disabled={!canAttach || busy} title={canAttach ? 'Adjuntar archivo' : 'Adjuntar archivo no disponible'} aria-label="Adjuntar archivo" onClick={() => openPicker()}><Ico name="paperclip" /></button>
-            <button type="button" className="ib-icon-btn" disabled={!canAttach || busy} title={canAttach ? 'Adjuntar imagen' : 'Adjuntar imagen no disponible'} aria-label="Adjuntar imagen" onClick={() => openPicker('image')}><Ico name="image" /></button>
-            <button type="button" className={`ib-icon-btn${pop === 'emoji' ? ' is-on' : ''}`} onClick={() => setPop(pop === 'emoji' ? null : 'emoji')} aria-label="Emojis" aria-expanded={pop === 'emoji'} disabled={blocked}><Ico name="smile" /></button>
-            <button type="button" className={`ib-icon-btn${pop === 'quick' ? ' is-on' : ''}`} onClick={() => { setPop(pop === 'quick' ? null : 'quick'); setFilter(''); }} aria-label="Respuestas rápidas" aria-expanded={pop === 'quick'} disabled={blocked}><Ico name="bolt" /></button>
-            {!note && p.channel === 'whatsapp' ? (
-              <button type="button" className={`ib-btn ib-btn--ghost ib-btn--sm${pop === 'template' ? ' is-on' : ''}`} onClick={() => setPop(pop === 'template' ? null : 'template')} aria-expanded={pop === 'template'} disabled={p.dnc || p.paused}>Plantillas</button>
-            ) : null}
+        {recording ? (
+          <div className="ib-record-bar" role="status">
+            <span className="ib-record-dot" aria-hidden="true" />
+            <span>Grabando… {fmtRecTime(recSeconds)}</span>
+            <button type="button" className="ib-btn ib-btn--ghost ib-btn--sm" onClick={cancelRecording}>Cancelar</button>
+            <button type="button" className="ib-btn ib-btn--primary ib-btn--sm" onClick={stopRecording}><Ico name="send" size={14} /> Detener</button>
           </div>
-          <button type="submit" className="ib-send" disabled={blocked || busy || uploading || (text.trim() === '' && (note || ready.length === 0))} aria-busy={busy}>
-            {note ? <><Ico name="lock" size={15} /> Guardar nota</> : busy ? <>Enviando…</> : <><Ico name="send" size={15} /> {files.length > 0 ? 'Enviar archivo' : 'Enviar'}</>}
-          </button>
-        </div>
+        ) : (
+          <div className="ib-composer-bar">
+            <div className="ib-tools">
+              <button type="button" className="ib-icon-btn" disabled={!canAttach || busy} title={canAttach ? 'Adjuntar archivo' : 'Adjuntar archivo no disponible'} aria-label="Adjuntar archivo" onClick={() => openPicker()}><Ico name="paperclip" /></button>
+              <button type="button" className="ib-icon-btn" disabled={!canAttach || busy} title={canAttach ? 'Adjuntar imagen' : 'Adjuntar imagen no disponible'} aria-label="Adjuntar imagen" onClick={() => openPicker('image')}><Ico name="image" /></button>
+              <button type="button" className="ib-icon-btn" disabled={!canAttach || busy || SEND_RULES[p.channel].groups.every((g) => g.kind !== 'audio')} title={canAttach ? 'Grabar una nota de voz' : 'Grabar audio no disponible'} aria-label="Grabar una nota de voz" onClick={() => void startRecording()}><Ico name="mic" /></button>
+              <button type="button" className={`ib-icon-btn${pop === 'emoji' ? ' is-on' : ''}`} onClick={() => setPop(pop === 'emoji' ? null : 'emoji')} aria-label="Emojis" aria-expanded={pop === 'emoji'} disabled={blocked}><Ico name="smile" /></button>
+              <button type="button" className={`ib-icon-btn${pop === 'quick' ? ' is-on' : ''}`} onClick={() => { setPop(pop === 'quick' ? null : 'quick'); setFilter(''); }} aria-label="Respuestas rápidas" aria-expanded={pop === 'quick'} disabled={blocked}><Ico name="bolt" /></button>
+              {!note && p.channel === 'whatsapp' ? (
+                <button type="button" className={`ib-btn ib-btn--ghost ib-btn--sm${pop === 'template' ? ' is-on' : ''}`} onClick={() => setPop(pop === 'template' ? null : 'template')} aria-expanded={pop === 'template'} disabled={p.dnc || p.paused}>Plantillas</button>
+              ) : null}
+            </div>
+            <button type="submit" className="ib-send" disabled={blocked || busy || uploading || (text.trim() === '' && (note || ready.length === 0))} aria-busy={busy}>
+              {note ? <><Ico name="lock" size={15} /> Guardar nota</> : busy ? <>Enviando…</> : <><Ico name="send" size={15} /> {files.length > 0 ? 'Enviar archivo' : 'Enviar'}</>}
+            </button>
+          </div>
+        )}
       </form>
 
       {pop === 'emoji' ? (

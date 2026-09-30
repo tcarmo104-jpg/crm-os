@@ -76,6 +76,7 @@ export interface CustomerRow {
   orgId: string;
   type: CustomerType;
   fullName: string;
+  avatarUrl: string | null;
   companyId: string | null;
   ownerId: string | null;
   teamId: string | null;
