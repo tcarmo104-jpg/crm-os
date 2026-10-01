@@ -56,3 +56,13 @@ una foto que ya existe.
 
 Verificado con 4 pruebas SQL nuevas y una mutación de seguridad (confirma que, si alguien accidentalmente
 dejara de pedir la foto en este caso, la prueba lo detecta).
+
+## Actualización (migración 0031): la foto se revisa de nuevo cada 30 días
+
+A pedido de uso real: antes, una vez guardada, la foto nunca se volvía a tocar. Ahora se guarda cuándo fue
+la última vez que se revisó, y pasados 30 días el siguiente mensaje de esa persona vuelve a pedirla a Meta —
+sin que nadie tenga que hacer nada. Si la persona cambió su foto de perfil, la nueva reemplaza a la vieja. Si
+Meta no devuelve ninguna esa vez (o la persona no tiene foto pública), igual se marca como revisada, para no
+insistir en cada mensaje.
+
+Verificado con 6 pruebas SQL nuevas y 2 mutaciones de seguridad, ambas detectadas.

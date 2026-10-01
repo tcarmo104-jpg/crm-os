@@ -604,3 +604,9 @@ envío fallido silencioso.
 `ingest_channel_message` ahora devuelve `needs_avatar` (si el cliente aún no tiene foto), calculado sin
 consulta extra. El webhook pide el perfil cuando la conversación es nueva O cuando le falta la foto — antes
 solo lo hacía en el primer caso, dejando sin foto a cualquier conversación anterior a la Fase 0028.
+
+## 38. Foto de perfil: revisión periódica cada 30 días (migración 0031)
+
+`customers.avatar_checked_at` registra la última revisión. `set_contact_profile` actualiza la foto cuando es
+la primera vez o pasaron 30+ días; si Meta no devuelve nada, igual marca como revisado (evita insistir en
+cada mensaje). `ingest_channel_message.needs_avatar` ahora también se enciende por vencimiento del plazo.
