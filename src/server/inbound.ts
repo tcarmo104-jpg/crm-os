@@ -100,7 +100,7 @@ async function processSocialPayload(admin: Admin, payload: unknown, deps: { fetc
       p_msg_kind: m.msgKind, p_body: m.body, p_occurred_at: m.occurredAt, p_meta: m.meta,
     });
     if (r.error) { sum.retry = true; continue; }
-    const d = r.data as { ok: boolean; reason?: string; new_conversation?: boolean; conversation_id?: string };
+    const d = r.data as { ok: boolean; reason?: string; new_conversation?: boolean; conversation_id?: string; needs_avatar?: boolean };
     if (!d.ok) {
       sum.ignored++;
       console.warn(JSON.stringify({ msg: 'meta_unknown_channel', kind: m.kind, account_id: m.accountId, reason: d.reason }));
@@ -109,7 +109,9 @@ async function processSocialPayload(admin: Admin, payload: unknown, deps: { fetc
     sum.messages++;
     alive.set(`${m.kind}:${m.accountId}`, { kind: m.kind, accountId: m.accountId });
     if (m.attachments?.length && !(await registerAttachments(admin, m.kind, m.accountId, m.externalId, m.attachments))) sum.retry = true;
-    if (d.new_conversation && d.conversation_id) await fillContactName(admin, m.kind, m.accountId, m.thread, d.conversation_id, deps);
+    // No solo al abrir la conversación: una que ya existía (de antes de esta función) y todavía no tiene
+    // foto también la vuelve a pedir. Una vez guardada, `needs_avatar` pasa a false y esto deja de llamarse.
+    if ((d.new_conversation || d.needs_avatar) && d.conversation_id) await fillContactProfile(admin, m.kind, m.accountId, m.thread, d.conversation_id, deps);
   }
   for (const s of statuses) {
     const r = await admin.rpc('apply_channel_status', { p_kind: s.kind, p_account_id: s.accountId, p_external_id: s.externalId, p_status: s.status, p_occurred_at: s.occurredAt, p_error_code: null, p_error: null });
@@ -125,7 +127,7 @@ async function processSocialPayload(admin: Admin, payload: unknown, deps: { fetc
 
 /** El webhook de Meta no trae el nombre ni la foto: se piden una vez al abrir la conversación, en la misma
  * llamada. Mejor esfuerzo, nunca hace fallar el webhook (si falla, se queda el nombre provisional y sin foto). */
-async function fillContactName(admin: Admin, kind: string, accountId: string, thread: string, conversationId: string, deps: { fetchImpl?: typeof fetch }) {
+async function fillContactProfile(admin: Admin, kind: string, accountId: string, thread: string, conversationId: string, deps: { fetchImpl?: typeof fetch }) {
   try {
     const ch = await admin.from('channels').select('id').eq('kind', kind).eq('external_id', accountId).maybeSingle();
     const id = (ch.data as { id: string } | null)?.id;

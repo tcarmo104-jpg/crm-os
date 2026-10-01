@@ -41,3 +41,18 @@ de voz ya grabada como archivo. Gmail acepta cualquiera de los tres formatos, as
   funciona correctamente. No se pudo grabar un audio real de principio a fin en el entorno de pruebas (el
   navegador headless usado para verificar no tiene micrófono, ni siquiera simulado) — el camino de subida y
   envío que usa después es el mismo que ya está probado para cualquier archivo adjuntado.
+
+## Corrección (migración 0030): conversaciones que ya existían antes de esta función
+
+**Un cliente real lo notó** al probarlo: las conversaciones de Facebook/Instagram que ya existían antes de
+que esta función se instalara nunca recibían su foto, porque el código solo la pedía la primera vez que se
+CREABA una conversación. Las que ya existían jamás volvían a pasar por ese camino.
+
+Se corrigió sin ninguna consulta extra: `ingest_channel_message` (que ya carga el cliente en memoria en cada
+mensaje) ahora también avisa si a ese cliente le falta la foto, sin importar si la conversación es nueva o
+no. El siguiente mensaje que llegue de un contacto sin foto — el que sea, no hace falta que sea el primero —
+la vuelve a pedir. Una vez guardada, dejan de pedirse llamadas de más: se sigue respetando que nunca se pisa
+una foto que ya existe.
+
+Verificado con 4 pruebas SQL nuevas y una mutación de seguridad (confirma que, si alguien accidentalmente
+dejara de pedir la foto en este caso, la prueba lo detecta).

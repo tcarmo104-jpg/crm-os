@@ -598,3 +598,9 @@ Configuración general edita `organizations` directamente (la política RLS ya e
 WhatsApp no lo permite por su API). Grabar audio reutiliza el flujo de subida ya existente; una limitación
 real de los navegadores (Chrome graba webm, que WhatsApp no acepta) se maneja con un aviso claro, no con un
 envío fallido silencioso.
+
+## 37. Corrección: foto de perfil en conversaciones ya existentes (migración 0030)
+
+`ingest_channel_message` ahora devuelve `needs_avatar` (si el cliente aún no tiene foto), calculado sin
+consulta extra. El webhook pide el perfil cuando la conversación es nueva O cuando le falta la foto — antes
+solo lo hacía en el primer caso, dejando sin foto a cualquier conversación anterior a la Fase 0028.
