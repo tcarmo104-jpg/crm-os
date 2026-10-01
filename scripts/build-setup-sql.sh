@@ -8,7 +8,7 @@ FROM="${1:-1}"
 if [ "$FROM" = "1" ]; then OUT=supabase/setup-all.sql; else OUT="supabase/setup-desde-$(printf %04d "$FROM").sql"; fi
 
 # Primera tabla que crea cada migración: si ya existe, esa migración ya está instalada.
-sentinel() { case "$1" in 6) echo custom_field_definitions;; 7) echo customers;; 8) echo api_keys;; 9) echo pipelines;; 10) echo tasks;; 11) echo products;; 12) echo sales;; 13) echo channels;; 14) echo tags;; 16) echo connection_events;; 17) echo oauth_sessions;; 18) echo message_attachments;; 19) echo attachment_uploads;; 21) echo webhook_stats;; 22) echo provider_apps;; 25) echo sequences;; 26) echo automation_rules;; *) echo "";; esac; }
+sentinel() { case "$1" in 6) echo custom_field_definitions;; 7) echo customers;; 8) echo api_keys;; 9) echo pipelines;; 10) echo tasks;; 11) echo products;; 12) echo sales;; 13) echo channels;; 14) echo tags;; 16) echo connection_events;; 17) echo oauth_sessions;; 18) echo message_attachments;; 19) echo attachment_uploads;; 21) echo webhook_stats;; 22) echo provider_apps;; 25) echo sequences;; 26) echo automation_rules;; 32) echo social_comments;; *) echo "";; esac; }
 
 {
   echo "-- ============================================================================="
@@ -101,6 +101,11 @@ sentinel() { case "$1" in 6) echo custom_field_definitions;; 7) echo customers;;
     if [ "$FROM" = "31" ]; then
       echo "  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'customers' and column_name = 'avatar_checked_at') then"
       echo "    raise exception 'Este proyecto YA tiene instalada la migración 0031 (existe customers.avatar_checked_at). No ejecutes este archivo: avísame.';"
+      echo "  end if;"
+    fi
+    if [ "$FROM" = "33" ]; then
+      echo "  if exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'record_comment_reply' and pg_get_function_result(p.oid) = 'uuid') then"
+      echo "    raise exception 'Este proyecto YA tiene instalada la migración 0033 (record_comment_reply ya devuelve uuid). No ejecutes este archivo: avísame.';"
       echo "  end if;"
     fi
     if [ "$FROM" = "23" ]; then

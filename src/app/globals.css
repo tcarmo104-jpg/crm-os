@@ -708,3 +708,17 @@ dialog.modal::backdrop { background: rgba(8, 20, 40, 0.45); backdrop-filter: blu
 .perm-cell { display: inline-flex; }
 .perm-special-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .perm-special-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); padding: 8px 12px; background: var(--surface-2); border-radius: var(--r-control); font-size: var(--fs-small); }
+
+/* ==========================================================================
+   Comentarios de Facebook/Instagram
+   ========================================================================== */
+.comment-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s-4); }
+.comment-list--nested { margin: var(--s-3) 0 0 44px; padding-left: var(--s-4); border-left: 2px solid var(--line); gap: var(--s-3); }
+.comment-row { display: flex; gap: var(--s-3); align-items: flex-start; }
+.comment-row--hidden { opacity: 0.6; }
+.comment-row--deleted { opacity: 0.5; }
+.comment-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.comment-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.comment-reply-echo { background: var(--surface-2); border-radius: var(--r-control); padding: 8px 12px; font-size: var(--fs-small); margin: 4px 0 0; }
+.comment-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 2px; }
+.comment-reply-form { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; max-width: 480px; }

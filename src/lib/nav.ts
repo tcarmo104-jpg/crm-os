@@ -22,6 +22,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { key: 'next-action', label: 'Mi próxima acción', icon: 'bolt', href: '/next-action' },
       { key: 'inbox', label: 'Inbox', icon: 'inbox', href: '/inbox' },
+      { key: 'comments', label: 'Comentarios', icon: 'chat', href: '/comments' },
       { key: 'opportunities', label: 'Oportunidades', icon: 'target', href: '/opportunities' },
       { key: 'tasks', label: 'Tareas', icon: 'check', href: '/tasks' },
       { key: 'activities', label: 'Actividades', icon: 'pin', href: '/activities' },

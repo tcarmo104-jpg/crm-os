@@ -115,8 +115,74 @@ export function parseSocialWebhook(payload: unknown): { kind: SocialKind | null;
 /** ¿El payload es de Messenger o Instagram (y no de WhatsApp)? */
 export const isSocialPayload = (p: unknown) => isObj(p) && (p.object === 'page' || p.object === 'instagram');
 
+// ---------------------------------------------------------------------------------------------- comentarios
+// Meta entrega los comentarios DENTRO de otro campo del webhook, no el de mensajería: Facebook los manda en
+// `feed` (junto con publicaciones, me gusta, etc. — se filtra por item="comment"), e Instagram en su propio
+// campo `comments`. Ninguno de los dos pasa por `e.messaging`, que es lo único que lee parseSocialWebhook.
+export interface SocialComment {
+  kind: SocialKind; accountId: string; postExternalId: string; commentExternalId: string; parentExternalId: string | null;
+  authorId: string; authorName: string; message: string | null; verb: 'add' | 'edit' | 'remove'; occurredAt: string;
+}
+/** ¿Trae comentarios este payload (además de, o en vez de, mensajes)? */
+export function parseCommentWebhook(payload: unknown): SocialComment[] {
+  const out: SocialComment[] = [];
+  if (!isObj(payload)) return out;
+  const kind: SocialKind | null = payload.object === 'page' ? 'facebook' : payload.object === 'instagram' ? 'instagram' : null;
+  if (!kind) return out;
+  for (const e of arr(payload.entry)) {
+    if (!isObj(e)) continue;
+    const accountId = digits(e.id, 3);
+    if (!accountId) continue;
+    const time = e.time;
+    for (const ch of arr(e.changes)) {
+      if (!isObj(ch)) continue;
+      if (kind === 'facebook' && ch.field === 'feed') addFacebookComment(accountId, ch.value, time, out);
+      else if (kind === 'instagram' && ch.field === 'comments') addInstagramComment(accountId, ch.value, time, out);
+    }
+  }
+  return out;
+}
+
+function addFacebookComment(accountId: string, value: unknown, entryTime: unknown, out: SocialComment[]): void {
+  if (!isObj(value) || value.item !== 'comment') return;
+  const commentId = digits(value.comment_id, 3);
+  const postId = digits(value.post_id, 3);
+  const from = isObj(value.from) ? value.from : null;
+  const authorId = from ? digits(from.id, 3) : null;
+  if (!commentId || !postId || !authorId) return;
+  const verb = value.verb === 'remove' ? 'remove' : value.verb === 'edited' || value.verb === 'edit' ? 'edit' : 'add';
+  const parentId = digits(value.parent_id, 3);
+  out.push({
+    kind: 'facebook', accountId, postExternalId: postId, commentExternalId: commentId,
+    parentExternalId: parentId && parentId !== postId ? parentId : null,
+    authorId, authorName: (str(isObj(from) ? from.name : null, 160) ?? 'Alguien'), message: str(value.message, 4000),
+    verb, occurredAt: toIso(value.created_time ?? entryTime),
+  });
+}
+
+function addInstagramComment(accountId: string, value: unknown, entryTime: unknown, out: SocialComment[]): void {
+  if (!isObj(value)) return;
+  const commentId = digits(value.id, 3);
+  const media = isObj(value.media) ? value.media : null;
+  const postId = media ? digits(media.id, 3) : null;
+  const from = isObj(value.from) ? value.from : null;
+  const authorId = from ? digits(from.id, 3) : null;
+  if (!commentId || !postId || !authorId) return;
+  // Instagram no manda "verb": si llega de nuevo el mismo id de comentario, es una edición (no una creación).
+  out.push({
+    kind: 'instagram', accountId, postExternalId: postId, commentExternalId: commentId,
+    parentExternalId: digits(value.parent_id, 3),
+    authorId, authorName: (str(isObj(from) ? from.username : null, 160) ?? 'Alguien'), message: str(value.text, 4000),
+    verb: 'add', occurredAt: toIso(entryTime),
+  });
+}
+
 // ---------------------------------------------------------------------------------------------- autorización (OAuth)
-export const META_SCOPES = ['pages_show_list', 'pages_messaging', 'pages_manage_metadata', 'pages_read_engagement', 'instagram_basic', 'instagram_manage_messages', 'business_management'];
+export const META_SCOPES = [
+  'pages_show_list', 'pages_messaging', 'pages_manage_metadata', 'pages_read_engagement', 'instagram_basic', 'instagram_manage_messages', 'business_management',
+  // Para el módulo de Comentarios: leer/crear/ocultar/eliminar comentarios de la Página y de Instagram.
+  'pages_manage_engagement', 'instagram_manage_comments',
+];
 export const GOOGLE_SCOPES = ['openid', 'email', 'https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'];
 export const GOOGLE_REQUIRED_SCOPES = ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'];
 

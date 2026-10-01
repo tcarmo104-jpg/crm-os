@@ -1,13 +1,13 @@
 import 'server-only';
 import { parseWebhook } from '@/lib/meta';
-import { isSocialPayload, parseSocialWebhook } from '@/lib/social';
+import { isSocialPayload, parseCommentWebhook, parseSocialWebhook } from '@/lib/social';
 import { openSecret } from '@/lib/secrets';
 import { fetchContactProfile } from './meta-social';
 import { registerAttachments } from './media';
 import type { createAdminClient } from './supabase-admin';
 
 type Admin = ReturnType<typeof createAdminClient>;
-export interface ProcessSummary { messages: number; statuses: number; ignored: number; retry: boolean }
+export interface ProcessSummary { messages: number; statuses: number; comments: number; ignored: number; retry: boolean }
 
 /**
  * Procesa un payload ya verificado. `retry` = algo debe reintentarse más tarde (error de base de datos, o el
@@ -16,7 +16,7 @@ export interface ProcessSummary { messages: number; statuses: number; ignored: n
 export async function processMetaPayload(admin: Admin, payload: unknown, deps: { fetchImpl?: typeof fetch } = {}): Promise<ProcessSummary> {
   if (isSocialPayload(payload)) return processSocialPayload(admin, payload, deps);
   const { messages, statuses } = parseWebhook(payload);
-  const sum: ProcessSummary = { messages: 0, statuses: 0, ignored: 0, retry: false };
+  const sum: ProcessSummary = { messages: 0, statuses: 0, comments: 0, ignored: 0, retry: false };
   const alive = new Set<string>();   // números cuyo webhook acaba de demostrar que funciona
 
   for (const m of messages) {
@@ -63,7 +63,7 @@ export async function handleWebhook(admin: Admin, payload: unknown): Promise<Pro
     return sum;
   } catch (e) {
     await admin.rpc('finish_raw_event', { p_id: id, p_ok: false, p_error: e instanceof Error ? e.message.slice(0, 200) : 'error' });
-    return { messages: 0, statuses: 0, ignored: 0, retry: true };   // guardado: el barrido lo reintenta
+    return { messages: 0, statuses: 0, comments: 0, ignored: 0, retry: true };   // guardado: el barrido lo reintenta
   }
 }
 
@@ -91,7 +91,7 @@ export async function sweepWebhooks(admin: Admin): Promise<{ retried: number; pu
  */
 async function processSocialPayload(admin: Admin, payload: unknown, deps: { fetchImpl?: typeof fetch }): Promise<ProcessSummary> {
   const { messages, statuses } = parseSocialWebhook(payload);
-  const sum: ProcessSummary = { messages: 0, statuses: 0, ignored: 0, retry: false };
+  const sum: ProcessSummary = { messages: 0, statuses: 0, comments: 0, ignored: 0, retry: false };
   const alive = new Map<string, { kind: string; accountId: string }>();
 
   for (const m of messages) {
@@ -121,6 +121,19 @@ async function processSocialPayload(admin: Admin, payload: unknown, deps: { fetc
     else if (d.reason === 'unknown_message') sum.ignored++;   // p. ej. un mensaje enviado desde otra app: no es nuestro
     else sum.ignored++;
   }
+  // Comentarios (distinto de los mensajes de arriba: llegan en otro campo del webhook de Meta, ver parseCommentWebhook).
+  for (const c of parseCommentWebhook(payload)) {
+    const r = await admin.rpc('ingest_social_comment', {
+      p_kind: c.kind, p_account_id: c.accountId, p_post_external_id: c.postExternalId, p_comment_external_id: c.commentExternalId,
+      p_parent_external_id: c.parentExternalId, p_author_id: c.authorId, p_author_name: c.authorName, p_message: c.message,
+      p_verb: c.verb, p_occurred_at: c.occurredAt,
+    });
+    if (r.error) { sum.retry = true; continue; }
+    const d = r.data as { ok: boolean; reason?: string };
+    if (d.ok) { sum.comments++; alive.set(`${c.kind}:${c.accountId}`, { kind: c.kind, accountId: c.accountId }); }
+    else sum.ignored++;
+  }
+
   for (const a of alive.values()) await admin.rpc('touch_channel', { p_kind: a.kind, p_external_id: a.accountId, p_activity: 'webhook' }).then(() => undefined, () => undefined);
   return sum;
 }

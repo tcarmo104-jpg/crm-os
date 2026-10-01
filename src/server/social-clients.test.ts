@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { exchangeMetaCode, extendMetaToken, fetchContactName, fetchContactProfile, listPages, pageSubscription, sendSocial, subscribePage } from './meta-social';
+import { deleteComment, exchangeMetaCode, extendMetaToken, fetchContactName, fetchContactProfile, fetchPostMeta, fetchRecentPosts, listPages, pageSubscription, replyToCommentPublic, sendPrivateReplyToComment, sendSocial, setCommentHidden, subscribePage } from './meta-social';
 import { exchangeGoogleCode, getGmailMessage, listHistory, refreshGoogleToken, sendGmailReply } from './gmail';
 
 type Call = { url: string; method: string; headers: Record<string, string>; body: string };
@@ -151,5 +151,71 @@ describe('Google', () => {
     expect(await sendGmailReply({ refreshToken: 'R', app: GAPP, from: 'ventas@arkos.co', to: 'no-es-correo', body: 'x', replyMeta: {}, fetchImpl: f.fetchImpl })).toMatchObject({ definitive: true, code: 'bad_recipient' });
     const f2 = fake((c) => c.url.includes('oauth2') ? { body: { access_token: 'FRESH' } } : { status: 503, body: {} });
     expect(await sendGmailReply({ refreshToken: 'R', app: GAPP, from: 'ventas@arkos.co', to: 'ana@ejemplo.com', body: 'x', replyMeta: {}, fetchImpl: f2.fetchImpl })).toMatchObject({ ok: false, definitive: false });
+  });
+});
+
+describe('comentarios: publicaciones recientes', () => {
+  it('fetchRecentPosts arma la lista con lo que Meta devuelve (Facebook)', async () => {
+    const f = fake(() => ({ body: { data: [{ id: '3300000000000001', permalink_url: 'https://facebook.com/p/1', message: 'Hola', created_time: '2026-01-01T00:00:00Z' }] } }));
+    const r = await fetchRecentPosts('facebook', '100000000000001', 'T', 10, { fetchImpl: f.fetchImpl });
+    expect(r).toEqual([{ externalId: '3300000000000001', permalink: 'https://facebook.com/p/1', caption: 'Hola', createdAt: '2026-01-01T00:00:00Z' }]);
+  });
+  it('fetchRecentPosts arma la lista con lo que Meta devuelve (Instagram, otros nombres de campo)', async () => {
+    const f = fake(() => ({ body: { data: [{ id: '3300000000000002', permalink: 'https://instagram.com/p/abc', caption: 'Nuevo producto', timestamp: '2026-01-02T00:00:00Z' }] } }));
+    const r = await fetchRecentPosts('instagram', '900000000000001', 'T', 10, { fetchImpl: f.fetchImpl });
+    expect(r).toEqual([{ externalId: '3300000000000002', permalink: 'https://instagram.com/p/abc', caption: 'Nuevo producto', createdAt: '2026-01-02T00:00:00Z' }]);
+  });
+  it('si Meta falla, devuelve null (no una lista vacía, que se vería como «sin publicaciones»)', async () => {
+    expect(await fetchRecentPosts('facebook', '100000000000001', 'T', 10, { fetchImpl: fake(() => 'network').fetchImpl })).toBeNull();
+  });
+  it('fetchPostMeta trae el permalink y el texto de UNA publicación por su id', async () => {
+    const f = fake(() => ({ body: { permalink_url: 'https://facebook.com/p/1', message: 'Hola' } }));
+    const r = await fetchPostMeta('facebook', '3300000000000001', 'T', { fetchImpl: f.fetchImpl });
+    expect(r).toMatchObject({ externalId: '3300000000000001', permalink: 'https://facebook.com/p/1', caption: 'Hola' });
+  });
+});
+
+describe('comentarios: responder, ocultar, eliminar', () => {
+  it('replyToCommentPublic manda el texto como un comentario hijo', async () => {
+    const f = fake(() => ({ body: { id: '4400000000000099' } }));
+    const r = await replyToCommentPublic('4400000000000001', 'Gracias por tu mensaje', 'T', { fetchImpl: f.fetchImpl });
+    expect(r).toEqual({ ok: true });
+    expect(f.calls[0]!.url).toContain('4400000000000001/comments');
+    expect(f.calls[0]!.body).toContain('message=Gracias');
+  });
+  it('setCommentHidden manda is_hidden=true (ocultar) o false (mostrar)', async () => {
+    const f = fake(() => ({ body: { success: true } }));
+    await setCommentHidden('4400000000000001', true, 'T', { fetchImpl: f.fetchImpl });
+    expect(f.calls[0]!.body).toContain('is_hidden=true');
+    await setCommentHidden('4400000000000001', false, 'T', { fetchImpl: f.fetchImpl });
+    expect(f.calls[1]!.body).toContain('is_hidden=false');
+  });
+  it('deleteComment usa el método de borrado, nunca borra por GET', async () => {
+    const f = fake(() => ({ body: { success: true } }));
+    const r = await deleteComment('4400000000000001', 'T', { fetchImpl: f.fetchImpl });
+    expect(r).toEqual({ ok: true });
+    expect(f.calls[0]!.method).toBe('POST');
+    expect(f.calls[0]!.body).toContain('method=delete');
+  });
+  it('un id de comentario inválido se rechaza sin llamar a Meta', async () => {
+    const f = fake(() => ({ body: {} }));
+    expect(await replyToCommentPublic('<script>', 'x', 'T', { fetchImpl: f.fetchImpl })).toMatchObject({ ok: false });
+    expect(f.calls).toHaveLength(0);
+  });
+});
+
+describe('comentarios: respuesta privada (mismo buzón que Messenger/Instagram Direct)', () => {
+  it('manda recipient.comment_id (no recipient.id, que es para conversaciones normales)', async () => {
+    const f = fake(() => ({ body: { message_id: 'm1' } }));
+    const r = await sendPrivateReplyToComment('4400000000000001', 'Te escribo por aquí con el precio', 'T', { fetchImpl: f.fetchImpl });
+    expect(r).toEqual({ ok: true });
+    const sent = JSON.parse(f.calls[0]!.body);
+    expect(sent.recipient).toEqual({ comment_id: '4400000000000001' });
+  });
+  it('si ya pasaron los 7 días, da un mensaje claro (no un código críptico de Meta)', async () => {
+    const f = fake(() => ({ status: 400, body: { error: { code: 10, message: 'Permission denied' } } }));
+    const r = await sendPrivateReplyToComment('4400000000000001', 'x', 'T', { fetchImpl: f.fetchImpl });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.message).toMatch(/7 días/);
   });
 });

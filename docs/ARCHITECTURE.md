@@ -610,3 +610,13 @@ solo lo hacía en el primer caso, dejando sin foto a cualquier conversación ant
 `customers.avatar_checked_at` registra la última revisión. `set_contact_profile` actualiza la foto cuando es
 la primera vez o pasaron 30+ días; si Meta no devuelve nada, igual marca como revisado (evita insistir en
 cada mensaje). `ingest_channel_message.needs_avatar` ahora también se enciende por vencimiento del plazo.
+
+## 39. Comentarios de Facebook/Instagram (migraciones 0032, 0033) — ver docs/COMENTARIOS.md
+
+Módulo separado del Inbox (un comentario es público, no una conversación privada). La respuesta privada
+reutiliza el mismo endpoint de mensajería y cae en el Inbox real. Permisos nuevos: `comments:read`,
+`comments:manage`. Requiere volver a conectar Facebook Messenger una vez (permisos nuevos de Meta).
+
+Nota de seguridad: el token de un canal nunca se lee con el cliente de la persona (solo `createAdminClient()`
++ `channel_credentials`, service_role) — se encontró y corrigió una violación de esta regla durante la
+verificación en navegador de esta misma fase.

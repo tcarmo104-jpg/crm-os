@@ -108,3 +108,74 @@ export async function sendSocialAttachment(i: SocialAttachmentSend): Promise<Sen
   if (r.kind === 'transient') return { ok: false, definitive: false, message: 'No se pudo confirmar el envío (sin respuesta de Meta).' };
   return { ok: false, definitive: true, code: r.code, subcode: r.subcode ?? null, message: describeSocialError(r.code, r.subcode, r.detail) };
 }
+
+// ---------------------------------------------------------------------------------------------- comentarios
+const COMMENT_ID = /^[0-9_]{3,60}$/;
+
+export interface PostSummary { externalId: string; permalink: string | null; caption: string | null; createdAt: string | null }
+/** Publicaciones recientes de la Página (Facebook) o la cuenta (Instagram), más nuevas primero. */
+export async function fetchRecentPosts(kind: SocialKind, accountId: string, token: string, limit = 10, o: GraphOpts = {}): Promise<PostSummary[] | null> {
+  if (!ID.test(accountId)) return null;
+  const fields = kind === 'instagram' ? 'id,permalink,caption,timestamp' : 'id,permalink_url,message,created_time';
+  const r = await graphCall<{ data?: Record<string, unknown>[] }>('GET', `${accountId}/${kind === 'instagram' ? 'media' : 'posts'}`, token, { ...o, params: { fields, limit: String(Math.min(limit, 25)) } });
+  if (!r.ok || !Array.isArray(r.data.data)) return null;
+  return r.data.data.map((p) => ({
+    externalId: String(p.id ?? ''),
+    permalink: typeof p.permalink_url === 'string' ? p.permalink_url : typeof p.permalink === 'string' ? p.permalink : null,
+    caption: typeof p.message === 'string' ? p.message : typeof p.caption === 'string' ? p.caption : null,
+    createdAt: typeof p.created_time === 'string' ? p.created_time : typeof p.timestamp === 'string' ? p.timestamp : null,
+  })).filter((p) => p.externalId);
+}
+
+/** Datos de UNA publicación (para completar una que ya guardamos solo con su id, la primera vez que se vio por el webhook). */
+export async function fetchPostMeta(kind: SocialKind, postId: string, token: string, o: GraphOpts = {}): Promise<PostSummary | null> {
+  if (!COMMENT_ID.test(postId)) return null;
+  const fields = kind === 'instagram' ? 'id,permalink,caption,timestamp' : 'id,permalink_url,message,created_time';
+  const r = await graphCall<Record<string, unknown>>('GET', postId, token, { ...o, params: { fields } });
+  if (!r.ok) return null;
+  return {
+    externalId: postId,
+    permalink: typeof r.data.permalink_url === 'string' ? r.data.permalink_url : typeof r.data.permalink === 'string' ? r.data.permalink : null,
+    caption: typeof r.data.message === 'string' ? r.data.message : typeof r.data.caption === 'string' ? r.data.caption : null,
+    createdAt: typeof r.data.created_time === 'string' ? r.data.created_time : typeof r.data.timestamp === 'string' ? r.data.timestamp : null,
+  };
+}
+
+export type CommentActionResult = { ok: true } | { ok: false; message: string };
+const describeCommentError = (r: GraphResult<unknown> & { ok: false }) =>
+  r.kind === 'transient' ? 'No se pudo confirmar la acción (sin respuesta de Meta). Vuelve a intentarlo.' : describeSocialError(r.code, r.subcode, r.detail);
+
+/** Responde en público a un comentario (queda visible para cualquiera, debajo del comentario original). */
+export async function replyToCommentPublic(commentId: string, message: string, token: string, o: GraphOpts = {}): Promise<CommentActionResult> {
+  if (!COMMENT_ID.test(commentId)) return { ok: false, message: 'El comentario no tiene un identificador válido.' };
+  const r = await graphCall<{ id?: string }>('POST', `${commentId}/comments`, token, { ...o, form: { message } });
+  if (r.ok) return { ok: true };
+  return { ok: false, message: describeCommentError(r) };
+}
+
+/** Oculta (o muestra de nuevo) un comentario. No lo borra: la persona que lo escribió lo sigue viendo. */
+export async function setCommentHidden(commentId: string, hidden: boolean, token: string, o: GraphOpts = {}): Promise<CommentActionResult> {
+  if (!COMMENT_ID.test(commentId)) return { ok: false, message: 'El comentario no tiene un identificador válido.' };
+  const r = await graphCall<{ success?: boolean }>('POST', commentId, token, { ...o, form: { is_hidden: String(hidden) } });
+  if (r.ok) return { ok: true };
+  return { ok: false, message: describeCommentError(r) };
+}
+
+/** Elimina un comentario de verdad (no se puede deshacer). */
+export async function deleteComment(commentId: string, token: string, o: GraphOpts = {}): Promise<CommentActionResult> {
+  if (!COMMENT_ID.test(commentId)) return { ok: false, message: 'El comentario no tiene un identificador válido.' };
+  const r = await graphCall<{ success?: boolean }>('POST', commentId, token, { ...o, form: { method: 'delete' } });
+  if (r.ok) return { ok: true };
+  return { ok: false, message: describeCommentError(r) };
+}
+
+/** Respuesta PRIVADA a quien comentó: usa el mismo buzón de mensajes que ya se usa para Messenger/Instagram
+ * Direct (`recipient.comment_id` en vez de `recipient.id`). Solo funciona dentro de los 7 días del comentario
+ * — pasado ese plazo Meta la rechaza, y se lo decimos a la persona en vez de un error críptico. */
+export async function sendPrivateReplyToComment(commentId: string, message: string, token: string, o: GraphOpts = {}): Promise<CommentActionResult> {
+  if (!COMMENT_ID.test(commentId)) return { ok: false, message: 'El comentario no tiene un identificador válido.' };
+  const r = await graphCall<{ message_id?: string }>('POST', 'me/messages', token, { ...o, json: { recipient: { comment_id: commentId }, message: { text: message } } });
+  if (r.ok) return { ok: true };
+  if (r.kind === 'rejected' && (r.code === '10' || r.code === '100')) return { ok: false, message: 'Ya pasaron más de 7 días desde el comentario: Meta ya no permite responder en privado. Prueba con una respuesta pública, o escríbele directo si ya es un contacto.' };
+  return { ok: false, message: describeCommentError(r) };
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { classifyMetaError } from './connections';
-import { googleAuthUrl, isSocialPayload, metaAuthUrl, newNonce, parseSocialWebhook, redirectUri, signState, verifyState } from './social';
+import { googleAuthUrl, isSocialPayload, metaAuthUrl, newNonce, parseCommentWebhook, parseSocialWebhook, redirectUri, signState, verifyState } from './social';
 
 const PAGE = '100000000000001', PSID = '5500000000000001';
 const fb = (messaging: unknown[], id = PAGE) => ({ object: 'page', entry: [{ id, time: 1, messaging }] });
@@ -101,5 +101,50 @@ describe('autorización (OAuth)', () => {
     for (const bad of [null, undefined, '', 'sin-punto', '.', 'a.b']) expect(verifyState(bad, 'secreto-largo', S.ts)).toBeNull();
     expect(verifyState(tok, undefined, S.ts)).toBeNull();
     expect(newNonce()).not.toBe(newNonce());
+  });
+});
+
+describe('parseCommentWebhook: los comentarios llegan por un campo distinto al de mensajería', () => {
+  it('Facebook: un comentario nuevo en una publicación (viene dentro de «feed»)', () => {
+    const payload = { object: 'page', entry: [{ id: PAGE, time: 1700000000, changes: [{ field: 'feed', value: {
+      item: 'comment', verb: 'add', comment_id: '4400000000000001', post_id: '3300000000000001',
+      message: '¿Cuánto cuesta?', created_time: 1700000000, from: { id: '5500000000000001', name: 'Juan Pérez' },
+    } }] }] };
+    const out = parseCommentWebhook(payload);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ kind: 'facebook', accountId: PAGE, postExternalId: '3300000000000001', commentExternalId: '4400000000000001', authorId: '5500000000000001', authorName: 'Juan Pérez', message: '¿Cuánto cuesta?', verb: 'add' });
+  });
+  it('Facebook: ignora otros tipos de actividad del feed (publicaciones, fotos, me gusta)', () => {
+    const payload = { object: 'page', entry: [{ id: PAGE, changes: [{ field: 'feed', value: { item: 'status', verb: 'add' } }] }] };
+    expect(parseCommentWebhook(payload)).toHaveLength(0);
+  });
+  it('Facebook: verb=remove se reconoce (para marcar el comentario como eliminado)', () => {
+    const payload = { object: 'page', entry: [{ id: PAGE, changes: [{ field: 'feed', value: {
+      item: 'comment', verb: 'remove', comment_id: '4400000000000001', post_id: '3300000000000001', from: { id: '5500000000000001' },
+    } }] }] };
+    expect(parseCommentWebhook(payload)[0]?.verb).toBe('remove');
+  });
+  it('Facebook: una respuesta a un comentario trae su parent_id (y no es igual al post_id)', () => {
+    const payload = { object: 'page', entry: [{ id: PAGE, changes: [{ field: 'feed', value: {
+      item: 'comment', verb: 'add', comment_id: '4400000000000002', post_id: '3300000000000001', parent_id: '4400000000000001',
+      message: 'De acuerdo', from: { id: '5500000000000002', name: 'Otra Persona' },
+    } }] }] };
+    expect(parseCommentWebhook(payload)[0]?.parentExternalId).toBe('4400000000000001');
+  });
+  it('Instagram: un comentario en un medio (viene en el campo «comments»)', () => {
+    const payload = { object: 'instagram', entry: [{ id: '9900000000000001', time: 1700000000, changes: [{ field: 'comments', value: {
+      id: '4400000000000003', text: 'Me encanta', from: { id: '5500000000000003', username: 'ana_g' }, media: { id: '3300000000000002' },
+    } }] }] };
+    const out = parseCommentWebhook(payload);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ kind: 'instagram', postExternalId: '3300000000000002', commentExternalId: '4400000000000003', authorId: '5500000000000003', authorName: 'ana_g', message: 'Me encanta' });
+  });
+  it('un payload de mensajería normal (sin «changes») no produce ningún comentario', () => {
+    const payload = { object: 'page', entry: [{ id: PAGE, messaging: [{ sender: { id: PSID }, recipient: { id: PAGE }, timestamp: 1700000000000, message: { mid: 'm1', text: 'hola' } }] }] };
+    expect(parseCommentWebhook(payload)).toHaveLength(0);
+  });
+  it('datos incompletos (sin autor, sin id de comentario) se descartan sin fallar', () => {
+    const payload = { object: 'page', entry: [{ id: PAGE, changes: [{ field: 'feed', value: { item: 'comment', verb: 'add' } }] }] };
+    expect(parseCommentWebhook(payload)).toHaveLength(0);
   });
 });
