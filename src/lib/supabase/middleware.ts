@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { publicEnv } from '@/lib/env';
 
-const PUBLIC_PREFIXES = ['/login', '/signup', '/forgot-password', '/auth', '/api/health', '/api/cron', '/privacidad', '/eliminacion-de-datos', '/terminos'];
+const PUBLIC_PREFIXES = ['/login', '/signup', '/forgot-password', '/auth', '/api/health', '/api/cron', '/privacidad', '/eliminacion-de-datos', '/terminos', '/widget'];
 
 function isPublic(path: string) {
   return PUBLIC_PREFIXES.some((p) => path === p || path.startsWith(p + '/'));
@@ -13,7 +13,7 @@ function isPublic(path: string) {
  * usuario ni consultan Supabase Auth. Si un webhook no figura aquí, el servidor de Meta (que no tiene sesión)
  * recibe una redirección al login y jamás llega el saludo ni ningún mensaje.
  */
-const SELF_AUTH_PREFIXES = ['/api/v1', '/api/webhooks'];
+const SELF_AUTH_PREFIXES = ['/api/v1', '/api/webhooks', '/api/widget'];
 export function isSelfAuthenticated(path: string) {
   return SELF_AUTH_PREFIXES.some((x) => path === x || path.startsWith(x + '/'));
 }

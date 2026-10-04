@@ -722,3 +722,9 @@ dialog.modal::backdrop { background: rgba(8, 20, 40, 0.45); backdrop-filter: blu
 .comment-reply-echo { background: var(--surface-2); border-radius: var(--r-control); padding: 8px 12px; font-size: var(--fs-small); margin: 4px 0 0; }
 .comment-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 2px; }
 .comment-reply-form { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; max-width: 480px; }
+
+/* ==========================================================================
+   Widget de WhatsApp: código de instalación
+   ========================================================================== */
+.install-code { display: flex; flex-direction: column; gap: var(--s-3); align-items: flex-start; }
+.install-code pre { width: 100%; background: var(--surface-2); border-radius: var(--r-control); padding: var(--s-4); overflow-x: auto; font-size: var(--fs-small); margin: 0; }

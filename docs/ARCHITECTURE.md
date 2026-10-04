@@ -620,3 +620,10 @@ reutiliza el mismo endpoint de mensajería y cae en el Inbox real. Permisos nuev
 Nota de seguridad: el token de un canal nunca se lee con el cliente de la persona (solo `createAdminClient()`
 + `channel_credentials`, service_role) — se encontró y corrigió una violación de esta regla durante la
 verificación en navegador de esta misma fase.
+
+## 40. Widget de WhatsApp para sitios web, Fase 1 (migración 0034) — ver docs/WIDGET-WHATSAPP.md
+
+El botón redirige a WhatsApp real (nunca un chat embebido falso): reutiliza `app.ingest_lead_core`. Seguridad
+por validación de dominio + límite de velocidad, sin llave secreta expuesta en el sitio del cliente. El
+script público y sus dos endpoints viven en `SELF_AUTH_PREFIXES` del middleware (como los webhooks de Meta),
+no en `PUBLIC_PREFIXES` — un visitante anónimo nunca tiene sesión del CRM.
