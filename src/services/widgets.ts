@@ -12,12 +12,14 @@ const schema = z.object({
   initialMessage: z.preprocess((v) => (typeof v === 'string' && v.trim() === '' ? undefined : v), z.string().trim().max(300).optional()),
   position: z.enum(WIDGET_POSITIONS), showText: z.boolean(), color: z.string().regex(HEX_COLOR, 'El color debe ser un código como #25D366.'), size: z.enum(WIDGET_SIZES),
   domains: z.string().trim().min(1, 'Escribe al menos un dominio donde se va a instalar.'),
+  // Región de la sede donde se instala; las reglas de distribución la comparan. Opcional: vacía = sin región.
+  region: z.preprocess((v) => (v === undefined || (typeof v === 'string' && v.trim() === '') ? null : v), z.string().trim().max(80, 'La región puede tener máximo 80 caracteres.').nullable()),
 });
 
 function toInput(d: z.infer<typeof schema>): repo.WidgetInput {
   const domains = normalizeDomainList(d.domains);
   if (domains.length === 0) throw new UserFacingError('Escribe al menos un dominio válido.');
-  return { channelId: d.channelId, name: d.name, buttonText: d.buttonText, initialMessage: d.initialMessage ?? null, position: d.position, showText: d.showText, color: d.color, size: d.size, allowedDomains: domains };
+  return { channelId: d.channelId, name: d.name, buttonText: d.buttonText, initialMessage: d.initialMessage ?? null, position: d.position, showText: d.showText, color: d.color, size: d.size, allowedDomains: domains, region: d.region };
 }
 
 export async function createWidget(db: ServerSupabase, orgId: string, input: unknown): Promise<string> {

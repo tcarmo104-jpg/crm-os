@@ -12,7 +12,8 @@ WhatsApp Business y entra al Inbox exactamente como cualquier mensaje de WhatsAp
 
 ## Qué se construyó
 - Generador de widgets (Configuración → WhatsApp → Widgets): nombre, número conectado, texto del botón,
-  mensaje de bienvenida, posición, color, tamaño, mostrar/ocultar texto, dominios autorizados.
+  mensaje de bienvenida, posición, color, tamaño, mostrar/ocultar texto, dominios autorizados y región
+  (opcional: la sede de la web donde se instala, que usan las reglas de distribución).
 - Código de instalación de una sola línea, que no hay que volver a tocar si cambias la configuración.
 - Un script embebible propio (sin dependencias, con sus propios estilos para no chocar con el sitio donde
   se instale) que dibuja el botón, abre el formulario, y redirige a WhatsApp.
@@ -45,7 +46,9 @@ WhatsApp Business y entra al Inbox exactamente como cualquier mensaje de WhatsAp
 ## Qué queda para las siguientes fases (ya lo hablamos)
 - Fase 2: botón «Crear oportunidad»/«Crear cotización» desde una conversación del Inbox, y mostrar el origen
   exacto del widget en la ficha del cliente.
-- Fase 3: reglas de distribución automática (round robin, por región, por equipo, por horario).
+- Fase 3 (hecha): reglas de distribución automática (round robin, por región, por equipo, por horario), en
+  Configuración → Distribución de conversaciones. La región sale de la configuración de cada widget, y solo
+  un contacto nuevo consume turno: si el teléfono ya existía, conserva su dueño (o sigue sin dueño).
 - Fase 4: métricas específicas del widget en el Dashboard.
 - Fase 5: vista previa en vivo del botón, tabla de administración con estadísticas por widget.
 

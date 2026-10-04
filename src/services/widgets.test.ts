@@ -44,3 +44,27 @@ describe('updateWidget: misma validación al editar', () => {
     expect(calls[0]!.data).toMatchObject({ name: 'Renombrado', allowed_domains: ['otra-tienda.com'] });
   });
 });
+
+describe('región del widget (la usan las reglas de distribución)', () => {
+  const base = { channelId: CH, name: 'Web Medellín', buttonText: 'Escríbenos', position: 'bottom-right', showText: true, color: '#25D366', size: 'medium', domains: 'medellin.arkos.com.co' };
+  it('guarda la región sin espacios sobrantes', async () => {
+    const { db, calls } = fakeDb();
+    await service.createWidget(db, ORG, { ...base, region: '  Medellín ' });
+    expect(calls[0]!.data).toMatchObject({ region: 'Medellín' });
+  });
+  it('vacía o ausente se guarda como null (widget sin región)', async () => {
+    const a = fakeDb(); await service.createWidget(a.db, ORG, { ...base, region: '   ' });
+    expect(a.calls[0]!.data).toMatchObject({ region: null });
+    const b = fakeDb(); await service.createWidget(b.db, ORG, base);
+    expect(b.calls[0]!.data).toMatchObject({ region: null });
+  });
+  it('rechaza una región de más de 80 caracteres', async () => {
+    const { db } = fakeDb();
+    await rejects(service.createWidget(db, ORG, { ...base, region: 'x'.repeat(81) }), /región/);
+  });
+  it('al editar también envía la región (y permite quitarla)', async () => {
+    const { db, calls } = fakeDb();
+    await service.updateWidget(db, 'w1', { ...base, region: '' });
+    expect(calls[0]!.data).toMatchObject({ region: null });
+  });
+});

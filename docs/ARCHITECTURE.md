@@ -627,3 +627,15 @@ El botón redirige a WhatsApp real (nunca un chat embebido falso): reutiliza `ap
 por validación de dominio + límite de velocidad, sin llave secreta expuesta en el sitio del cliente. El
 script público y sus dos endpoints viven en `SELF_AUTH_PREFIXES` del middleware (como los webhooks de Meta),
 no en `PUBLIC_PREFIXES` — un visitante anónimo nunca tiene sesión del CRM.
+
+## 41. Distribución automática de conversaciones, Fase 3 del widget (migración 0035) — ver docs/WIDGET-WHATSAPP.md
+
+`app.pick_assignee`: reglas por canal/widget/región/horario, prioridad, reparto por turnos dentro del equipo
+(bloqueo de fila para concurrencia). La región sale de `whatsapp_widgets.region` (configurada por widget, no
+por el visitante). Solo un contacto genuinamente nuevo (`outcome` created/review, no deduplicado) consume
+turno — uno existente conserva su dueño (o sigue sin uno) sin tocar el reparto. Escrita primero sin poder
+compilar/probar por una falla de red del entorno; verificada después de punta a punta con Postgres real en
+otra sesión (npm ci, tsc, 566 pruebas unitarias, 34 suites SQL), que encontró y corrigió varios errores reales
+(revoke roto que bloqueaba toda la migración, `pick_assignee` sin revocar, condición de carrera en el round
+robin, huso horario inválido tragado en silencio, FK que ampliaba una regla de un widget a «todos» al
+borrarlo) antes de esta entrega.

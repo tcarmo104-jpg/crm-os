@@ -11,7 +11,7 @@ import { setFlash } from '@/lib/flash';
 
 function readInput(fd: FormData) {
   return { channelId: str(fd.get('channelId')), name: str(fd.get('name')), buttonText: str(fd.get('buttonText')), initialMessage: str(fd.get('initialMessage')),
-    position: str(fd.get('position')), showText: fd.get('showText') === 'on', color: str(fd.get('color')), size: str(fd.get('size')), domains: str(fd.get('domains')) };
+    position: str(fd.get('position')), showText: fd.get('showText') === 'on', color: str(fd.get('color')), size: str(fd.get('size')), domains: str(fd.get('domains')), region: str(fd.get('region')) };
 }
 
 export async function createWidgetAction(_prev: ActionState, fd: FormData): Promise<ActionState> {

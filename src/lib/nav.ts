@@ -63,6 +63,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { key: 'duplicates', label: 'Duplicados', icon: 'copy', href: '/settings/duplicates' },
       { key: 'channels', label: 'Canales (WhatsApp)', icon: 'chat', href: '/settings/channels' },
       { key: 'whatsapp-widgets', label: 'Widgets de WhatsApp', icon: 'chat', href: '/settings/whatsapp-widgets' },
+      { key: 'assignment-rules', label: 'Distribución de conversaciones', icon: 'team', href: '/settings/assignment-rules' },
       { key: 'general', label: 'Configuración general', icon: 'gear', href: '/settings/general' },
     ],
   },

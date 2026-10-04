@@ -74,6 +74,9 @@ export function WidgetForm({
         <p className="hint">Uno por línea (o separados por coma). El widget solo va a funcionar en estos dominios y sus subdominios.</p>
       </div>
 
+      <Field label="Región (opcional)" name="region" defaultValue={initial?.region ?? ''} maxLength={80} placeholder="Medellín" required={false}
+        hint="La sede o región de la web donde se instala este widget. Las reglas de distribución con esa región asignan sus contactos al equipo que corresponda. El visitante no ve ni escribe nada." />
+
       <SubmitButton pendingLabel="Guardando…">{mode === 'create' ? 'Crear widget' : 'Guardar cambios'}</SubmitButton>
     </form>
   );
