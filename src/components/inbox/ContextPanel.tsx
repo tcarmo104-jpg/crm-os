@@ -30,9 +30,9 @@ function Section({ title, count, open = true, children, action }: { title: strin
 }
 
 export function ContextPanel({
-  ctx, allTags, ownerName, timeZone, conversationId, canEditCustomer, actions, nameOf, files,
+  ctx, allTags, ownerName, timeZone, conversationId, canEditCustomer, canCreateOpportunity, actions, nameOf, files,
 }: {
-  ctx: CustomerContext; allTags: TagRow[]; ownerName: string | null; timeZone: string; conversationId: string; canEditCustomer: boolean; files: AttachmentRow[];
+  ctx: CustomerContext; allTags: TagRow[]; ownerName: string | null; timeZone: string; conversationId: string; canEditCustomer: boolean; canCreateOpportunity: boolean; files: AttachmentRow[];
   actions: { addTag: Action; removeTag: Action }; nameOf: (id: string | null) => string;
 }) {
   const c = ctx.customer;
@@ -87,6 +87,32 @@ export function ContextPanel({
           </form>
         ) : null}
       </Section>
+
+      <Section title="Oportunidades" count={ctx.opportunities.length}
+        action={canCreateOpportunity ? <Link className="ib-link" href={`/opportunities/new?customer=${c.id}`}>+ Nueva oportunidad</Link> : null}>
+        {ctx.opportunities.length === 0 ? <p className="ib-muted">Sin oportunidades abiertas.</p> : (
+          <ul className="ib-mini">
+            {ctx.opportunities.map((o) => (
+              <li key={o.id}>
+                <p><Link href={`/opportunities/${o.id}`}>{o.title}</Link></p>
+                <small>{formatMoney(o.amount, o.currency)} · <Link href={`/opportunities/${o.id}`}>Ver / cotizar</Link></small>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
+      {ctx.widgetOrigin ? (
+        <Section title="Origen" open={false}>
+          <dl className="ib-kv">
+            <dt>Llegó por</dt><dd>Widget de WhatsApp{ctx.widgetOrigin.widgetName ? ` («${ctx.widgetOrigin.widgetName}»)` : ''}</dd>
+            {ctx.widgetOrigin.pageUrl ? <><dt>Página</dt><dd><a href={ctx.widgetOrigin.pageUrl} target="_blank" rel="noreferrer">{ctx.widgetOrigin.domain ?? ctx.widgetOrigin.pageUrl}</a></dd></> : null}
+            {ctx.widgetOrigin.productUrl ? <><dt>Producto</dt><dd><a href={ctx.widgetOrigin.productUrl} target="_blank" rel="noreferrer">Ver producto</a></dd></> : null}
+            {ctx.widgetOrigin.utmSource ? <><dt>Fuente</dt><dd>{ctx.widgetOrigin.utmSource}</dd></> : null}
+            {ctx.widgetOrigin.utmCampaign ? <><dt>Campaña</dt><dd>{ctx.widgetOrigin.utmCampaign}</dd></> : null}
+          </dl>
+        </Section>
+      ) : null}
 
       <Section title="Pedidos" count={ctx.sales.count}>
         {ctx.sales.items.length === 0 ? <p className="ib-muted">Este cliente aún no tiene pedidos.</p> : (

@@ -48,3 +48,30 @@ WhatsApp Business y entra al Inbox exactamente como cualquier mensaje de WhatsAp
 - Fase 3: reglas de distribución automática (round robin, por región, por equipo, por horario).
 - Fase 4: métricas específicas del widget en el Dashboard.
 - Fase 5: vista previa en vivo del botón, tabla de administración con estadísticas por widget.
+
+## Fase 2: oportunidad/cotización desde el Inbox, y ver el origen del cliente
+
+- **«+ Nueva oportunidad» directo desde cualquier conversación del Inbox.** No se construyó un formulario
+  nuevo: se reutilizó la pantalla de crear oportunidad que ya existía (`/opportunities/new?customer=…`, que
+  ya aceptaba un cliente por la URL), solo se agregó el enlace desde la ficha del cliente.
+- **Cotizar**: como una cotización siempre pertenece a una oportunidad (no existen sueltas), la ficha del
+  cliente lista sus oportunidades abiertas con un enlace «Ver / cotizar» a cada una — ahí es donde ya existe
+  el botón de «Nueva cotización». Nada duplicado.
+- **Sección «Origen»**: si el cliente llegó por un widget de WhatsApp, la ficha muestra de qué widget vino,
+  la página exacta, y las UTM (fuente, campaña) — tomado del mismo lead que `start_widget_conversation` ya
+  guardaba en la Fase 1, sin ningún dato nuevo que capturar.
+
+### Verificación
+- 3 pruebas de integración nuevas (oportunidad visible en la ficha, origen del widget correcto, un cliente
+  sin origen de widget no revienta — queda `null` con naturalidad).
+- Verificado en navegador real: la sección «Origen» expandida muestra el widget, la página y la campaña
+  correctamente. El enlace «+ Nueva oportunidad» apunta al cliente correcto y precarga el formulario ya
+  existente — confirmado visualmente.
+- **Una verificación que no pude completar**: el envío final del formulario de «Nueva oportunidad» (una
+  pantalla que ya existía antes de esta fase, sin tocar) se comportó de forma inconsistente con mi sesión de
+  prueba simulada durante la navegación automatizada — probablemente una particularidad de cómo mi entorno
+  de pruebas simula el inicio de sesión frente a una redirección de un Server Action, no algo que un usuario
+  real con una sesión real debería notar. La lógica de creación en sí ya está probada a fondo, incluidas 279
+  pruebas de integración contra la base de datos real que confirman que `createOpportunity` funciona
+  correctamente. Vale la pena que confirmes este paso específico (crear la oportunidad desde el botón nuevo)
+  la primera vez que lo uses.

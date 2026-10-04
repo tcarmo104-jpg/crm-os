@@ -1,12 +1,14 @@
 import type { ServerSupabase } from '@/lib/supabase/server';
 import { unwrap } from '@/lib/errors';
-import type { ActivityRow, CustomerRow, FieldDefinition, IdentifierRow, SaleRow, TagRow, TaskRow } from '@/lib/types';
+import type { ActivityRow, CustomerRow, FieldDefinition, IdentifierRow, OpportunityRow, SaleRow, TagRow, TaskRow } from '@/lib/types';
 import { getCustomer, getCustomersByIds, listIdentifiers } from './customers';
 import { listActivities } from './activities';
 import { listSales } from './sales';
 import { listTasks } from './tasks';
 import { listFieldDefinitions } from './custom-fields';
 import { tagsByCustomer } from './inbox';
+import { listOpportunities } from './opportunities';
+import { getWidgetOrigin, type WidgetOrigin } from './lead-origin';
 
 export interface ProductLine { name: string; quantity: number }
 
@@ -21,6 +23,8 @@ export interface CustomerContext {
   noteCount: number;
   products: ProductLine[];
   fieldDefs: FieldDefinition[];
+  opportunities: OpportunityRow[];       // abiertas; vacío si no tiene permiso de verlas (no hace fallar nada)
+  widgetOrigin: WidgetOrigin | null;     // de dónde vino si llegó por un widget de WhatsApp
 }
 
 /** Junta por nombre las líneas de las ventas del cliente (suma de cantidades), de mayor a menor. */
@@ -40,7 +44,7 @@ export function aggregateProducts(lines: { description: string; quantity: number
 export async function loadCustomerContext(db: ServerSupabase, orgId: string, customerId: string): Promise<CustomerContext | null> {
   const customer = await getCustomer(db, customerId);
   if (!customer) return null;
-  const [identifiers, tagMap, salesPage, tasks, activities, fieldDefs, companies] = await Promise.all([
+  const [identifiers, tagMap, salesPage, tasks, activities, fieldDefs, companies, opportunities, widgetOrigin] = await Promise.all([
     listIdentifiers(db, [customerId]),
     tagsByCustomer(db, [customerId]),
     listSales(db, { orgId, customerId, limit: 50 }),
@@ -48,6 +52,8 @@ export async function loadCustomerContext(db: ServerSupabase, orgId: string, cus
     listActivities(db, { customerId, limit: 100 }),
     listFieldDefinitions(db, orgId, 'customer'),
     customer.companyId ? getCustomersByIds(db, [customer.companyId]) : Promise.resolve([] as CustomerRow[]),
+    listOpportunities(db, { orgId, customerId, status: 'open', limit: 20 }).catch(() => [] as OpportunityRow[]),
+    getWidgetOrigin(db, customerId).catch(() => null),
   ]);
 
   const live = salesPage.items.filter((s) => s.status !== 'cancelled');
@@ -61,6 +67,6 @@ export async function loadCustomerContext(db: ServerSupabase, orgId: string, cus
     customer, identifiers, tags: tagMap.get(customerId) ?? [],
     company: companies[0] ? { id: companies[0].id, fullName: companies[0].fullName } : null,
     sales: { items: salesPage.items.slice(0, 5), total: live.reduce((n, s) => n + s.total, 0), count: salesPage.items.length },
-    tasks, notes: allNotes, noteCount: allNotes.length, products, fieldDefs,
+    tasks, notes: allNotes, noteCount: allNotes.length, products, fieldDefs, opportunities, widgetOrigin,
   };
 }

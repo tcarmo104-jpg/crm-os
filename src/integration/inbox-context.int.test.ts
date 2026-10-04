@@ -16,7 +16,9 @@ import { createOrganization } from '@/repositories/organizations';
 import * as customers from '@/repositories/customers';
 import * as repo from '@/repositories/inbox';
 import { loadCustomerContext } from '@/repositories/inbox-context';
+import { getWidgetOrigin } from '@/repositories/lead-origin';
 import * as inbox from '@/services/inbox';
+import { createOpportunity } from '@/services/sales';
 import { createAdminClient } from '@/server/supabase-admin';
 
 const REST_URL = process.env.REST_URL!;
@@ -243,5 +245,30 @@ describe('respuestas rápidas', () => {
     expect(toUserMessage(await rejects(inbox.deleteQuickReply(s2, id)))).toMatch(/permiso/i);
     await inbox.deleteQuickReply(s1, id);
     expect(await repo.listQuickReplies(a, org)).toEqual([]);
+  });
+});
+
+describe('ficha del cliente: oportunidades abiertas y origen del widget (Fase 2)', () => {
+  it('una oportunidad abierta del cliente aparece en su ficha del Inbox', async () => {
+    const oppId = await createOpportunity(s1, { customerId: ids.carlos, title: 'Sillas para oficina', amount: 500000 });
+    const ctx = await loadCustomerContext(s1, org, ids.carlos);
+    expect(ctx!.opportunities.some((o) => o.id === oppId && o.title === 'Sillas para oficina')).toBe(true);
+  });
+
+  it('un cliente que llegó por el widget de WhatsApp muestra su origen (página, UTM)', async () => {
+    const custId = await mkCustomer(a, 'Felipe Widget', '+573001110199');
+    sql(`insert into leads (org_id, customer_id, source, channel, resolution, raw_payload) values ('${org}', '${custId}', 'widget_web', 'whatsapp', 'created',
+      '{"widget_name":"Web principal","page_url":"https://arkos.com.co/productos/sillas","domain":"arkos.com.co","utm_source":"google","utm_campaign":"verano2026"}'::jsonb)`);
+
+    const origin = await getWidgetOrigin(a, custId);
+    expect(origin).toMatchObject({ widgetName: 'Web principal', pageUrl: 'https://arkos.com.co/productos/sillas', utmSource: 'google', utmCampaign: 'verano2026' });
+
+    const ctx = await loadCustomerContext(a, org, custId);
+    expect(ctx!.widgetOrigin).toMatchObject({ widgetName: 'Web principal', utmSource: 'google' });
+  });
+
+  it('un cliente que NO llegó por un widget no muestra ningún origen (no revienta, queda null)', async () => {
+    const ctx = await loadCustomerContext(s1, org, ids.carlos);
+    expect(ctx!.widgetOrigin).toBeNull();
   });
 });

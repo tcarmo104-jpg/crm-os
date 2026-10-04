@@ -44,6 +44,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   const canUpdate = can(session, 'conversations:update');
   const canManage = can(session, 'settings:manage');
   const canEditCustomer = can(session, 'customers:update');
+  const canCreateOpportunity = can(session, 'opportunities:create');
   const canAssign = session.permissions['customers:update'] === 'org';
   const userId = session.user.id;
 
@@ -147,7 +148,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
       context = (
         <ContextPanel
           ctx={ctx} allTags={tags} ownerName={ctx.customer.ownerId ? memberName(ctx.customer.ownerId) : null} timeZone={org.orgTimezone}
-          conversationId={conversation.id} files={customerFiles} canEditCustomer={canEditCustomer} actions={{ addTag: addTagAction, removeTag: removeTagAction }} nameOf={memberName}
+          conversationId={conversation.id} files={customerFiles} canEditCustomer={canEditCustomer} canCreateOpportunity={canCreateOpportunity} actions={{ addTag: addTagAction, removeTag: removeTagAction }} nameOf={memberName}
         />
       );
     }
