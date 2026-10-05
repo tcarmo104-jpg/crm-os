@@ -49,7 +49,7 @@ WhatsApp Business y entra al Inbox exactamente como cualquier mensaje de WhatsAp
 - Fase 3 (hecha): reglas de distribución automática (round robin, por región, por equipo, por horario), en
   Configuración → Distribución de conversaciones. La región sale de la configuración de cada widget, y solo
   un contacto nuevo consume turno: si el teléfono ya existía, conserva su dueño (o sigue sin dueño).
-- Fase 4: métricas específicas del widget en el Dashboard.
+- Fase 4 (hecha): métricas del widget en Analítica → Widget de WhatsApp (`/reports/widget`). Detalle abajo.
 - Fase 5: vista previa en vivo del botón, tabla de administración con estadísticas por widget.
 
 ## Fase 2: oportunidad/cotización desde el Inbox, y ver el origen del cliente
@@ -78,3 +78,56 @@ WhatsApp Business y entra al Inbox exactamente como cualquier mensaje de WhatsAp
   pruebas de integración contra la base de datos real que confirman que `createOpportunity` funciona
   correctamente. Vale la pena que confirmes este paso específico (crear la oportunidad desde el botón nuevo)
   la primera vez que lo uses.
+
+## Fase 4: métricas del widget (Analítica → Widget de WhatsApp)
+
+**No se duplicó la analítica: se extendió.** La página nueva usa los mismos períodos, la misma comparación
+contra el período anterior, el mismo formulario de filtros (`DashboardFilters`, al que se le agregaron
+selectores opcionales sin cambiar su uso en el Dashboard), los mismos gráficos y la misma exportación a CSV
+(`/api/reports/export?type=widget`) que el resto de Analítica. La lógica de cálculo vive en `lib/analytics.ts`
+(funciones puras, como el resto) y el permiso es el mismo `reports:read` / `reports:export`.
+
+**Qué se mide**: conversaciones iniciadas, cuántas escribieron de verdad por WhatsApp, contactos nuevos vs.
+recurrentes, conversión a oportunidad y a venta (con monto), tiempo de primera respuesta y de resolución
+(promedio y mediana), con desglose por página de origen, producto, campaña, asesor, región, equipo y widget,
+y filtros por todo eso más fecha. La misma página con distintos UTMs en la URL se agrupa como una sola.
+
+**Una migración pequeña (0036), por dos cosas que no existían:**
+1. *Cuándo se cerró una conversación.* Cerrar no dejaba fecha en ningún lado, y una conversación se reabre
+   con cada mensaje nuevo; se agregó un registro de cierres (solo-anexar, por trigger). **El tiempo de
+   resolución se mide desde que se instala esta versión**: los cierres anteriores no se pueden reconstruir.
+2. *`widget_lead_facts`*, una fila por lead del widget con lo que le pasó después. Es `security definer`
+   porque los widgets solo los lee `settings:manage`; por eso aplica a mano `reports:read` y **el mismo
+   predicado que la política de `leads`**: cada rol ve exactamente los leads que ya veía en Leads.
+
+**Cómo se atribuye** (también explicado en la propia página, en «Cómo se calcula cada número»):
+- *Escribió por WhatsApp*: su primer mensaje entrante en el número del widget dentro de las 24 h siguientes.
+- *Primera respuesta*: el primer mensaje escrito por una persona (las automatizaciones no cuentan).
+- *Resolución*: el primer cierre de esa conversación después de que escribió.
+- *Oportunidad*: la convertida desde el lead o, si no, la primera del cliente creada después del formulario
+  (así cuenta la del botón «+ Nueva oportunidad» del Inbox, que se crea para el cliente). *Venta*: la primera
+  no anulada de esa oportunidad.
+- Si el cliente vuelve a usar el widget, lo que pase desde ahí es del lead nuevo: nada se cuenta dos veces.
+- Las tasas de conversión son sobre las conversaciones iniciadas (cada formulario enviado).
+
+**Dos errores reales encontrados con el navegador** (ninguna prueba automática los había detectado): las
+etiquetas del embudo se cortaban («Llenaron el form…») y el aviso «sin datos del período anterior» se repetía
+tres veces. Se acortaron las etiquetas (con la explicación completa debajo) y la comparación se oculta cuando no
+hay base, como en el Dashboard. También se corrigió un error de la Fase 3: el cambio de `WidgetInput` había
+dejado sin compilar `widgets.int.test.ts` (no afectaba la ejecución, sí la verificación de tipos).
+
+**Rendimiento**: 5.000 leads del widget con todo su recorrido se calculan en ~0,6 s. La página consulta el
+período actual y el anterior; tope de 5.000 por período, con aviso visible si se alcanza.
+
+**Verificación**: 26 pruebas SQL nuevas (atribución caso por caso y permisos por rol), 19 unitarias nuevas (más la de navegación ampliada), 5
+de integración contra PostgREST real (suite completa: 284), y 27 comprobaciones en navegador real con datos
+sembrados por los caminos reales (formulario público, webhook de WhatsApp, respuesta desde el Inbox, cierre,
+oportunidad, cotización aceptada y venta): KPIs contra la base de datos, las 7 pestañas de desglose, filtros
+combinados que conservan la pestaña, el CSV descargado (igual a lo que se ve), una vendedora y un jefe de
+ventas viendo solo lo suyo, la exportación negada sin permiso, y la vista en móvil.
+
+**Ojo al correr las pruebas de integración**: `widgets.int.test.ts` prueba la ruta pública del widget solo si
+encuentra una app escuchando en `APP_URL` (por defecto `http://127.0.0.1:3999`); si no hay nada, esa parte se
+salta sin avisar. Si en ese puerto hay una app conectada a OTRA base de datos (me pasó con mi servidor de
+pruebas del navegador), la prueba falla porque no encuentra el widget recién creado. Con el puerto libre o
+con la app correcta: 284/284.

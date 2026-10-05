@@ -5,7 +5,8 @@ import { listOpportunities } from '@/repositories/opportunities';
 import { listLeads } from '@/repositories/leads';
 import { listSales } from '@/repositories/sales';
 import { listMembers } from '@/repositories/members';
-import { resolveDateRange, groupSalesByPeriod, groupLeadsBySource, buildPerformance, parsePeriod } from '@/lib/analytics';
+import { resolveDateRange, groupSalesByPeriod, groupLeadsBySource, buildPerformance, parsePeriod, parseWidgetFilters, breakdownWidgetFacts, formatDuration, WIDGET_DIMENSION_LABEL } from '@/lib/analytics';
+import { loadWidgetMetrics } from '@/services/widget-metrics';
 import { toCsv } from '@/lib/csv';
 import { formatMoney } from '@/lib/money';
 
@@ -46,6 +47,18 @@ export async function GET(request: NextRequest) {
     csv = toCsv(['Persona', 'Ganadas', 'Monto ganado', 'Perdidas', 'Tasa de conversión'],
       rows.map((r) => [nameOf(r.personId), r.won, formatMoney(r.wonAmount, null, org.orgLocale), r.lost, r.winRate === null ? '—' : `${r.winRate}%`]));
     filename = 'desempeno.csv';
+  } else if (type === 'widget') {
+    // Los mismos filtros que la página /reports/widget: lo que se descarga es lo que se ve.
+    const raw: Record<string, string | string[]> = {};
+    for (const k of new Set(sp.keys())) { const all = sp.getAll(k); raw[k] = all.length > 1 ? all : all[0]!; }
+    const filters = parseWidgetFilters(raw);
+    const data = await loadWidgetMetrics(db, org, filters);
+    const rows = breakdownWidgetFacts(data.facts, filters.por, data.labelOf(filters.por));
+    const pct = (n: number | null) => (n === null ? '—' : `${n}%`);
+    csv = toCsv([WIDGET_DIMENSION_LABEL[filters.por], 'Iniciadas', 'Nuevos', 'Recurrentes', 'Escribieron por WhatsApp', 'Oportunidades', 'Conversión a oportunidad', 'Ventas', 'Conversión a venta', 'Monto', 'Primera respuesta (promedio)', 'Resolución (promedio)'],
+      rows.map((r) => [r.label, r.summary.started, r.summary.newContacts, r.summary.returning, r.summary.reachedWhatsapp, r.summary.opportunities, pct(r.summary.oppRate),
+        r.summary.sales, pct(r.summary.saleRate), formatMoney(r.summary.salesAmount, null, org.orgLocale), formatDuration(r.summary.avgFirstResponseMs), formatDuration(r.summary.avgResolutionMs)]));
+    filename = `widget-whatsapp-por-${filters.por}.csv`;
   } else {
     return new Response('Reporte desconocido.', { status: 400 });
   }

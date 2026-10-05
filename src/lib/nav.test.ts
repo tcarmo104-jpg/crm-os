@@ -33,5 +33,8 @@ describe('navegación', () => {
     expect(locate('/settings/connections/whatsapp/x')).toMatchObject({ group: { label: 'Configuración' }, item: { label: 'Conexiones' } });
     expect(locate('/')).toMatchObject({ group: null, item: { label: 'Hoy' } });
     expect(locate('/ruta-que-no-existe')).toEqual({ group: null, item: null });
+    // una subruta con su propio módulo gana sobre la ruta padre
+    expect(locate('/reports/widget')).toMatchObject({ group: { label: 'Analítica' }, item: { label: 'Widget de WhatsApp' } });
+    expect(locate('/reports')).toMatchObject({ item: { label: 'Reportes' } });
   });
 });

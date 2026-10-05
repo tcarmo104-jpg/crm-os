@@ -24,6 +24,8 @@ Los permisos `reports:read` / `reports:export` ya estaban definidos y asignados 
 - Se extendieron `listOpportunities`, `listSales`, `listTasks` y `listLeads` con filtros de fecha,
   respetando su uso existente.
 - Menú actualizado: estas 4 páginas salieron de «Próximamente» a un grupo nuevo, «Analítica».
+- **Ampliación (Widget de WhatsApp, Fase 4)**: `/reports/widget`, métricas del widget con los mismos períodos,
+  filtros, gráficos y exportación. Ver `docs/WIDGET-WHATSAPP.md` → «Fase 4».
 
 ## Dos errores reales encontrados y corregidos
 1. **Un error serio, cometido y corregido en el camino:** al crear `lib/csv.ts` sobreescribí sin darme

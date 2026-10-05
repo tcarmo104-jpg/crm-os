@@ -167,3 +167,148 @@ export function buildAlerts(counts: { overdueTasks: number; overdueOpportunities
   if (counts.quotesPendingFollowUp > 0) rows.push({ key: 'quotes_pending', label: `${counts.quotesPendingFollowUp} ${counts.quotesPendingFollowUp === 1 ? 'cotización enviada sin seguimiento' : 'cotizaciones enviadas sin seguimiento'}`, count: counts.quotesPendingFollowUp, href: '/quotes', tone: 'todo' });
   return rows;
 }
+
+// ---------------------------------------------------------------------------
+// Widget de WhatsApp (Fase 4): una fila por lead del widget —`widget_lead_facts` en la base de datos— y aquí,
+// lógica pura, los filtros, el resumen, el embudo y los desgloses. Mismo patrón que el resto de este archivo.
+// ---------------------------------------------------------------------------
+export interface WidgetLeadFact {
+  leadId: string; receivedAt: string; customerId: string; isNew: boolean;
+  widgetId: string | null; widgetName: string | null; pageUrl: string | null; productUrl: string | null;
+  utmSource: string | null; utmMedium: string | null; utmCampaign: string | null; region: string | null;
+  ownerId: string | null; teamId: string | null;
+  firstInboundAt: string | null; firstResponseAt: string | null; closedAt: string | null;
+  opportunityId: string | null; saleId: string | null; saleTotal: number | null;
+}
+
+export const WIDGET_DIMENSIONS = ['pagina', 'producto', 'campana', 'asesor', 'region', 'equipo', 'widget'] as const;
+export type WidgetDimension = (typeof WIDGET_DIMENSIONS)[number];
+export const WIDGET_DIMENSION_LABEL: Record<WidgetDimension, string> = {
+  pagina: 'Página de origen', producto: 'Producto', campana: 'Campaña', asesor: 'Asesor', region: 'Región', equipo: 'Equipo', widget: 'Widget',
+};
+const WIDGET_NONE_LABEL: Record<WidgetDimension, string> = {
+  pagina: 'Sin página', producto: 'Sin producto', campana: 'Sin campaña', asesor: 'Sin asignar', region: 'Sin región', equipo: 'Sin equipo', widget: 'Widget desconocido',
+};
+export const widgetNoneLabel = (d: WidgetDimension) => WIDGET_NONE_LABEL[d];
+
+/** Una URL como clave de agrupación: dominio + ruta, sin protocolo, sin `?utm_…` ni `#`, sin «/» final.
+ * Sin esto, la misma página con distintos UTMs se contaría como páginas distintas. */
+export function pageKey(url: string | null | undefined): string | null {
+  const raw = (url ?? '').trim();
+  if (!raw) return null;
+  try {
+    const u = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`);
+    const path = u.pathname.replace(/\/+$/, '');
+    return `${u.hostname.toLowerCase().replace(/^www\./, '')}${path}`;
+  } catch {
+    return raw.split(/[?#]/)[0]!.replace(/\/+$/, '') || null;
+  }
+}
+
+/** La clave de cada lead en una dimensión (null = «sin …»). */
+export function widgetKeyOf(f: WidgetLeadFact, d: WidgetDimension): string | null {
+  switch (d) {
+    case 'pagina': return pageKey(f.pageUrl);
+    case 'producto': return pageKey(f.productUrl);
+    case 'campana': return f.utmCampaign?.trim() || null;
+    case 'asesor': return f.ownerId;
+    case 'region': return f.region?.trim() || null;
+    case 'equipo': return f.teamId;
+    case 'widget': return f.widgetId;
+  }
+}
+
+export interface WidgetFilters {
+  periodo: DatePreset; desde?: string; hasta?: string; personas: string[]; equipos: string[];
+  widget?: string; pagina?: string; producto?: string; campana?: string; region?: string; por: WidgetDimension;
+}
+/** Filtros de la página del widget: los mismos globales del Dashboard (período, personas, equipos) + los propios. */
+export function parseWidgetFilters(sp: Record<string, string | string[] | undefined>): WidgetFilters {
+  const one = (k: string) => { const v = sp[k]; const s = (Array.isArray(v) ? v[0] : v)?.trim(); return s || undefined; };
+  const base = parseDashFilters({ periodo: one('periodo'), desde: one('desde'), hasta: one('hasta'), personas: sp.personas, equipos: sp.equipos });
+  const por = (WIDGET_DIMENSIONS as readonly string[]).includes(one('por') ?? '') ? (one('por') as WidgetDimension) : 'pagina';
+  return { periodo: base.periodo, desde: base.desde, hasta: base.hasta, personas: base.personas, equipos: base.equipos,
+    widget: one('widget'), pagina: one('pagina'), producto: one('producto'), campana: one('campana'), region: one('region'), por };
+}
+/** El valor especial de los selectores para filtrar «sin …» (p. ej. leads sin campaña). */
+export const NONE_FILTER = '__none__';
+
+export function filterWidgetFacts(facts: WidgetLeadFact[], f: WidgetFilters): WidgetLeadFact[] {
+  const eq = (d: WidgetDimension, want: string | undefined) => (fact: WidgetLeadFact) => {
+    if (!want) return true;
+    const k = widgetKeyOf(fact, d);
+    return want === NONE_FILTER ? k === null : k !== null && k.toLowerCase() === want.toLowerCase();
+  };
+  const checks = [eq('widget', f.widget), eq('pagina', f.pagina), eq('producto', f.producto), eq('campana', f.campana), eq('region', f.region)];
+  return facts.filter((x) => checks.every((c) => c(x))
+    && (f.personas.length === 0 || (x.ownerId !== null && f.personas.includes(x.ownerId)))
+    && (f.equipos.length === 0 || (x.teamId !== null && f.equipos.includes(x.teamId))));
+}
+
+const ms = (a: string | null, b: string | null) => (a && b ? Math.max(0, new Date(b).getTime() - new Date(a).getTime()) : null);
+const avg = (xs: number[]) => (xs.length === 0 ? null : Math.round(xs.reduce((t, x) => t + x, 0) / xs.length));
+const median = (xs: number[]) => {
+  if (xs.length === 0) return null;
+  const s = [...xs].sort((a, b) => a - b), mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid]! : Math.round((s[mid - 1]! + s[mid]!) / 2);
+};
+const rate = (n: number, d: number) => (d === 0 ? null : Math.round((n / d) * 1000) / 10);
+
+export interface WidgetSummary {
+  started: number; reachedWhatsapp: number; newContacts: number; returning: number;
+  opportunities: number; sales: number; salesAmount: number;
+  reachedRate: number | null; oppRate: number | null; saleRate: number | null; oppToSaleRate: number | null;
+  answered: number; unanswered: number; avgFirstResponseMs: number | null; medianFirstResponseMs: number | null;
+  resolved: number; avgResolutionMs: number | null; medianResolutionMs: number | null;
+}
+/** Todo lo de un conjunto de leads del widget. Las tasas son sobre las conversaciones iniciadas (cada formulario). */
+export function summarizeWidgetFacts(facts: WidgetLeadFact[]): WidgetSummary {
+  const reached = facts.filter((f) => f.firstInboundAt);
+  const responses = reached.map((f) => ms(f.firstInboundAt, f.firstResponseAt)).filter((x): x is number => x !== null);
+  const resolutions = reached.map((f) => ms(f.firstInboundAt, f.closedAt)).filter((x): x is number => x !== null);
+  const opps = facts.filter((f) => f.opportunityId).length;
+  const sold = facts.filter((f) => f.saleId);
+  return {
+    started: facts.length, reachedWhatsapp: reached.length,
+    newContacts: facts.filter((f) => f.isNew).length, returning: facts.filter((f) => !f.isNew).length,
+    opportunities: opps, sales: sold.length, salesAmount: sold.reduce((t, f) => t + (f.saleTotal ?? 0), 0),
+    reachedRate: rate(reached.length, facts.length), oppRate: rate(opps, facts.length), saleRate: rate(sold.length, facts.length), oppToSaleRate: rate(sold.length, opps),
+    answered: responses.length, unanswered: reached.length - responses.length,
+    avgFirstResponseMs: avg(responses), medianFirstResponseMs: median(responses),
+    resolved: resolutions.length, avgResolutionMs: avg(resolutions), medianResolutionMs: median(resolutions),
+  };
+}
+
+export interface WidgetBreakdownRow { key: string; label: string; summary: WidgetSummary }
+/** Desglose por una dimensión: el mismo resumen completo para cada grupo, de mayor a menor volumen. */
+export function breakdownWidgetFacts(facts: WidgetLeadFact[], d: WidgetDimension, labelOf: (key: string) => string): WidgetBreakdownRow[] {
+  const groups = new Map<string, WidgetLeadFact[]>();
+  for (const f of facts) {
+    const k = widgetKeyOf(f, d) ?? NONE_FILTER;
+    // misma clave sin importar mayúsculas (campañas y regiones se escriben a mano)
+    const norm = k === NONE_FILTER ? k : k.toLowerCase();
+    const found = [...groups.keys()].find((g) => (g === NONE_FILTER ? g : g.toLowerCase()) === norm) ?? k;
+    groups.set(found, [...(groups.get(found) ?? []), f]);
+  }
+  return [...groups.entries()]
+    .map(([key, list]) => ({ key, label: key === NONE_FILTER ? WIDGET_NONE_LABEL[d] : labelOf(key), summary: summarizeWidgetFacts(list) }))
+    .sort((a, b) => b.summary.started - a.summary.started || a.label.localeCompare(b.label));
+}
+
+/** Opciones para un selector de filtro: lo que de verdad aparece en el período (sin listas inventadas). */
+export function widgetFilterOptions(facts: WidgetLeadFact[], d: WidgetDimension, labelOf: (key: string) => string): { value: string; label: string }[] {
+  return breakdownWidgetFacts(facts, d, labelOf).map((r) => ({ value: r.key, label: r.label }));
+}
+
+/** «45 s», «12 min», «3 h 5 min», «2 d 4 h». `null` = sin datos («—»). */
+export function formatDuration(msValue: number | null): string {
+  if (msValue === null) return '—';
+  const s = Math.round(msValue / 1000);
+  if (s < 60) return `${s} s`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60), rm = m % 60;
+  if (h < 24) return rm ? `${h} h ${rm} min` : `${h} h`;
+  const d = Math.floor(h / 24), rh = h % 24;
+  return rh ? `${d} d ${rh} h` : `${d} d`;
+}

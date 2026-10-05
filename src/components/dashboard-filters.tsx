@@ -1,17 +1,27 @@
 import { DATE_PRESET_LABEL, DATE_PRESETS, type DatePreset } from '@/lib/analytics';
 
 export interface DashFilterValue { periodo: DatePreset; desde?: string; hasta?: string; personas: string[]; equipos: string[]; canal?: string }
+/** Un selector adicional de una sola opción (p. ej. los del widget: página, campaña…), con «Todos» por defecto. */
+export interface ExtraSelect { param: string; label: string; value?: string; options: { value: string; label: string }[] }
 
 /** Filtros globales del Dashboard: un solo formulario (sin JavaScript), con «Aplicar» y «Limpiar». */
 export function DashboardFilters({
-  basePath, value, people, teams, channels,
-}: { basePath: string; value: DashFilterValue; people: { id: string; name: string }[]; teams: { id: string; name: string }[]; channels: string[] }) {
-  const hasFilters = value.personas.length > 0 || value.equipos.length > 0 || !!value.canal || value.periodo !== 'this_month';
+  basePath, value, people, teams, channels, extraSelects = [], keep = {},
+}: {
+  basePath: string; value: DashFilterValue; people: { id: string; name: string }[]; teams: { id: string; name: string }[]; channels: string[];
+  extraSelects?: ExtraSelect[];
+  /** Parámetros que no son filtros pero deben sobrevivir al aplicar (p. ej. la dimensión del desglose). */
+  keep?: Record<string, string>;
+}) {
+  const activeExtras = extraSelects.filter((e) => e.value);
+  const hasFilters = value.personas.length > 0 || value.equipos.length > 0 || !!value.canal || value.periodo !== 'this_month' || activeExtras.length > 0;
+  const clearHref = Object.keys(keep).length ? `${basePath}?${new URLSearchParams(keep)}` : basePath;
   const chip = (label: string) => <span key={label} className="dash-chip">{label}</span>;
 
   return (
     <div className="stack" style={{ gap: 8 }}>
       <form action={basePath} method="get" className="dash-filters">
+        {Object.entries(keep).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
         <div className="field">
           <label className="label small" htmlFor="df-periodo">Período</label>
           <select id="df-periodo" name="periodo" className="select" defaultValue={value.periodo}>
@@ -51,8 +61,17 @@ export function DashboardFilters({
             </select>
           </div>
         ) : null}
+        {extraSelects.map((e) => (
+          <div className="field" key={e.param}>
+            <label className="label small" htmlFor={`df-${e.param}`}>{e.label}</label>
+            <select id={`df-${e.param}`} name={e.param} className="select" defaultValue={e.value ?? ''} style={{ maxWidth: 220 }}>
+              <option value="">Todos</option>
+              {e.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+        ))}
         <button type="submit" className="btn btn-primary">Aplicar filtros</button>
-        {hasFilters ? <a href={basePath} className="btn btn-ghost">Limpiar</a> : null}
+        {hasFilters ? <a href={clearHref} className="btn btn-ghost">Limpiar</a> : null}
       </form>
       {hasFilters ? (
         <div className="dash-chips">
@@ -61,6 +80,7 @@ export function DashboardFilters({
           {value.personas.map((id) => chip(people.find((p) => p.id === id)?.name ?? id))}
           {value.equipos.map((id) => chip(teams.find((t) => t.id === id)?.name ?? id))}
           {value.canal ? chip(value.canal) : null}
+          {activeExtras.map((e) => chip(`${e.label}: ${e.options.find((o) => o.value === e.value)?.label ?? e.value}`))}
         </div>
       ) : null}
     </div>

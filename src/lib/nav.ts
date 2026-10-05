@@ -48,6 +48,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { key: 'funnel', label: 'Embudo', icon: 'funnel', href: '/funnel' },
       { key: 'performance', label: 'Desempeño', icon: 'chart', href: '/performance' },
       { key: 'reports', label: 'Reportes', icon: 'file', href: '/reports' },
+      { key: 'widget-metrics', label: 'Widget de WhatsApp', icon: 'chat', href: '/reports/widget' },
     ],
   },
   {
