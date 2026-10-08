@@ -1,60 +1,62 @@
 import type { ServerSupabase } from '@/lib/supabase/server';
 import {
-  filterWidgetFacts, previousPeriod, resolveDateRange, widgetKeyOf,
+  filterWidgetFacts, previousPeriod, resolveDateRange,
   type DateRange, type WidgetDimension, type WidgetFilters, type WidgetLeadFact,
 } from '@/lib/analytics';
-import { listWidgetLeadFacts } from '@/repositories/widget-metrics';
 import { listMembers } from '@/repositories/members';
 import { listTeams } from '@/repositories/teams';
+import { listWidgetLeadFacts, WIDGET_FACTS_LIMIT } from '@/repositories/widget-metrics';
 
 export interface WidgetMetricsData {
-  range: DateRange;
-  /** Todos los leads del widget del período (para armar las opciones de los filtros). */
-  all: WidgetLeadFact[];
-  /** Los que pasan los filtros. */
+  /** Leads del período actual que ya pasaron los filtros (los globales y los propios del widget). */
   facts: WidgetLeadFact[];
-  /** Mismos filtros, período anterior del mismo tamaño (para comparar). */
+  /** Leads del período de comparación anterior, con los mismos filtros — para las flechas de variación. */
   previous: WidgetLeadFact[];
+  /** Leads del período actual con solo los filtros globales (personas/equipos): de aquí salen las opciones
+   * de los selectores (widget/página/producto/campaña/región), para que no desaparezcan al elegir una. */
+  all: WidgetLeadFact[];
+  /** true si había más de `WIDGET_FACTS_LIMIT` leads en el período y se recortó a los más recientes. */
   truncated: boolean;
-  people: { id: string; name: string }[];
-  teams: { id: string; name: string }[];
+  range: DateRange;
+  /** Nombre legible de la clave de una dimensión (`asesor`/`equipo` por id; el resto ya es texto). */
   labelOf: (d: WidgetDimension) => (key: string) => string;
 }
 
-/** Arma todo lo que necesitan la página de métricas del widget y su exportación a CSV (la misma fuente, los
- * mismos filtros: lo que se descarga es exactamente lo que se ve). */
-export async function loadWidgetMetrics(db: ServerSupabase, org: { orgId: string; orgTimezone: string }, filters: WidgetFilters, now = new Date()): Promise<WidgetMetricsData> {
-  const range = resolveDateRange(filters.periodo, now, org.orgTimezone, { from: filters.desde, to: filters.hasta });
+/** Todo lo que necesita la pestaña «Widget» de Analítica: los hechos del período (y del anterior, para
+ * comparar), ya filtrados, más los nombres de personas y equipos para mostrarlos en los desgloses. */
+export async function loadWidgetMetrics(
+  db: ServerSupabase,
+  org: { orgId: string; orgTimezone: string },
+  filters: WidgetFilters,
+): Promise<WidgetMetricsData> {
+  const range = resolveDateRange(filters.periodo, new Date(), org.orgTimezone, { from: filters.desde, to: filters.hasta });
   const prevRange = previousPeriod(range);
-  const [cur, prev, members, teams] = await Promise.all([
-    listWidgetLeadFacts(db, { orgId: org.orgId, from: range.from, to: range.to }),
-    listWidgetLeadFacts(db, { orgId: org.orgId, from: prevRange.from, to: prevRange.to }),
+
+  const [{ facts: rawCurrent, truncated }, { facts: rawPrevious }, members, teams] = await Promise.all([
+    listWidgetLeadFacts(db, org.orgId, range.from, range.to, WIDGET_FACTS_LIMIT),
+    listWidgetLeadFacts(db, org.orgId, prevRange.from, prevRange.to, WIDGET_FACTS_LIMIT),
     listMembers(db, org.orgId),
     listTeams(db, org.orgId),
   ]);
 
+  const globalOnly: WidgetFilters = { ...filters, widget: undefined, pagina: undefined, producto: undefined, campana: undefined, region: undefined };
+  const all = filterWidgetFacts(rawCurrent, globalOnly);
+  const facts = filterWidgetFacts(rawCurrent, filters);
+  const previous = filterWidgetFacts(rawPrevious, filters);
+
   const memberName = new Map(members.map((m) => [m.userId, m.fullName || m.email || 'Sin nombre']));
   const teamName = new Map(teams.map((t) => [t.id, t.name]));
-  // El nombre del widget viene guardado en cada lead (no hace falta poder leer la configuración de widgets).
+  // El nombre del widget ya viaja en cada hecho (lo resolvió la función de la base de datos); si el widget se
+  // borró, usamos el último nombre visto en los propios leads en lugar de «Widget desconocido» siempre.
   const widgetName = new Map<string, string>();
-  for (const f of [...cur.items].reverse()) if (f.widgetId && f.widgetName) widgetName.set(f.widgetId, f.widgetName);
+  for (const f of rawCurrent) if (f.widgetId && f.widgetName) widgetName.set(f.widgetId, f.widgetName);
 
   const labelOf = (d: WidgetDimension) => (key: string): string => {
-    if (d === 'asesor') return memberName.get(key) ?? 'Persona que ya no está';
-    if (d === 'equipo') return teamName.get(key) ?? 'Equipo eliminado';
+    if (d === 'asesor') return memberName.get(key) ?? 'Sin nombre';
+    if (d === 'equipo') return teamName.get(key) ?? 'Sin equipo';
     if (d === 'widget') return widgetName.get(key) ?? 'Widget eliminado';
-    if (d === 'region' || d === 'campana') {
-      // Se escribe a mano: se muestra como aparece la primera vez.
-      return cur.items.map((f) => widgetKeyOf(f, d)).find((k) => k?.toLowerCase() === key.toLowerCase()) ?? key;
-    }
-    return key;
+    return key; // pagina / producto / campana / region: la clave ya es el texto legible.
   };
 
-  const active = members.filter((m) => m.status === 'active');
-  return {
-    range, all: cur.items, facts: filterWidgetFacts(cur.items, filters), previous: filterWidgetFacts(prev.items, filters), truncated: cur.truncated,
-    people: active.map((m) => ({ id: m.userId, name: memberName.get(m.userId)! })),
-    teams: teams.map((t) => ({ id: t.id, name: t.name })),
-    labelOf,
-  };
+  return { facts, previous, all, truncated, range, labelOf };
 }
