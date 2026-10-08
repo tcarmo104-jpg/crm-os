@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPrefilledMessage, buildWhatsAppLink, normalizeDomainList } from './widgets';
+import { buildBusinessHours, buildPrefilledMessage, buildWhatsAppLink, normalizeDomainList } from './widgets';
 
 describe('normalizeDomainList: limpia lo que alguien escriba a mano sin pensarlo mucho', () => {
   it('quita protocolo, www, barras finales y espacios', () => {
@@ -28,5 +28,23 @@ describe('buildPrefilledMessage: siempre incluye el nombre, para que el asesor s
   });
   it('sin mensaje, usa un texto por defecto (nunca manda algo vacío)', () => {
     expect(buildPrefilledMessage('Beto', '   ')).toBe('Hola, soy Beto. Hola, quiero más información.');
+  });
+});
+
+describe('buildBusinessHours: solo guarda los días marcados y con un horario válido', () => {
+  it('ignora los días no marcados como activos', () => {
+    expect(buildBusinessHours([{ day: 1, active: false, from: '09:00', to: '18:00' }])).toEqual([]);
+  });
+  it('conserva los días activos con horario válido', () => {
+    expect(buildBusinessHours([{ day: 1, active: true, from: '09:00', to: '18:00' }])).toEqual([{ day: 1, from: '09:00', to: '18:00' }]);
+  });
+  it('descarta una fila con horario invertido (la hora de cierre antes que la de apertura)', () => {
+    expect(buildBusinessHours([{ day: 1, active: true, from: '18:00', to: '09:00' }])).toEqual([]);
+  });
+  it('descarta una hora con formato inválido', () => {
+    expect(buildBusinessHours([{ day: 1, active: true, from: '9am', to: '18:00' }])).toEqual([]);
+  });
+  it('arreglo vacío si no hay ningún día activo', () => {
+    expect(buildBusinessHours([])).toEqual([]);
   });
 });

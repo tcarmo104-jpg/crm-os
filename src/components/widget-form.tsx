@@ -2,20 +2,23 @@
 
 import { useActionState, useState } from 'react';
 import { initialActionState, type ActionState } from '@/lib/action-state';
-import { POSITION_LABEL, SIZE_LABEL, WIDGET_POSITIONS, WIDGET_SIZES } from '@/lib/widgets';
+import { POSITION_LABEL, SIZE_LABEL, WEEKDAY_LABELS, WIDGET_POSITIONS, WIDGET_SIZES, type BusinessHourRange } from '@/lib/widgets';
 import { MESSAGE_TEMPLATE_VARIABLES } from '@/lib/widget-fields';
 import { Feedback, Field } from './forms';
 import { SubmitButton } from './ui';
 import type { WidgetRow } from '@/repositories/widgets';
 
 export function WidgetForm({
-  mode, widgetId, initial, channels, action,
+  mode, widgetId, initial, channels, members, action,
 }: {
   mode: 'create' | 'edit'; widgetId?: string; initial?: WidgetRow; channels: { id: string; name: string; displayPhone: string | null }[];
+  members: { userId: string; fullName: string | null; email: string | null }[];
   action: (prev: ActionState, fd: FormData) => Promise<ActionState>;
 }) {
   const [state, formAction] = useActionState(action, initialActionState);
   const [color, setColor] = useState(initial?.color ?? '#25D366');
+  const [showAdvisor, setShowAdvisor] = useState(initial?.showAdvisor ?? false);
+  const byDay = new Map<number, BusinessHourRange>((initial?.businessHours ?? []).map((r) => [r.day, r]));
 
   return (
     <form action={formAction} className="stack" noValidate>
@@ -87,6 +90,50 @@ export function WidgetForm({
           {MESSAGE_TEMPLATE_VARIABLES.map((v) => <code key={v} style={{ marginRight: 6 }}>{`{{${v}}}`}</code>)}
           — una intención (más abajo) puede tener su propio mensaje y usar estas mismas variables.
         </p>
+      </div>
+
+      <div className="field">
+        <label className="label">Horario de atención (opcional)</label>
+        <p className="hint">Sin ningún día marcado, el widget muestra siempre el mismo mensaje — como hoy. Si marcas días, fuera de ese horario se muestra el mensaje de «fuera de horario» en vez del formulario.</p>
+        <div className="table-wrap">
+          <table className="table">
+            <thead><tr><th scope="col"></th><th scope="col">Día</th><th scope="col">Desde</th><th scope="col">Hasta</th></tr></thead>
+            <tbody>
+              {WEEKDAY_LABELS.map((label, day) => {
+                const existing = byDay.get(day);
+                return (
+                  <tr key={day}>
+                    <td><input type="checkbox" name={`bh_active_${day}`} defaultChecked={Boolean(existing)} /></td>
+                    <td>{label}</td>
+                    <td><input type="time" name={`bh_from_${day}`} className="input" defaultValue={existing?.from ?? '09:00'} /></td>
+                    <td><input type="time" name={`bh_to_${day}`} className="input" defaultValue={existing?.to ?? '18:00'} /></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="grid-2">
+        <Field label="Zona horaria" name="timezone" defaultValue={initial?.timezone ?? 'America/Bogota'} maxLength={60} hint="Un nombre de zona IANA, p. ej. America/Bogota, America/Mexico_City, America/Santiago." />
+        <div className="field">
+          <label className="label" htmlFor="wf-ooh">Mensaje fuera de horario</label>
+          <textarea id="wf-ooh" name="outOfHoursMessage" className="input" rows={2} maxLength={300} defaultValue={initial?.outOfHoursMessage ?? ''} placeholder="Ahora estamos fuera de horario. Te respondemos en nuestro próximo horario de atención." />
+        </div>
+      </div>
+
+      <div className="field">
+        <label className="inline-form" style={{ gap: 8 }}>
+          <input type="checkbox" name="showAdvisor" checked={showAdvisor} onChange={(e) => setShowAdvisor(e.target.checked)} />
+          Mostrar un asesor en el panel (nombre y foto)
+        </label>
+        {showAdvisor ? (
+          <select name="advisorUserId" className="select" defaultValue={initial?.advisorUserId ?? ''} style={{ marginTop: 8 }}>
+            <option value="">Elige un miembro del equipo</option>
+            {members.map((m) => <option key={m.userId} value={m.userId}>{m.fullName ?? m.email ?? m.userId}</option>)}
+          </select>
+        ) : null}
       </div>
 
       <SubmitButton pendingLabel="Guardando…">{mode === 'create' ? 'Crear widget' : 'Guardar cambios'}</SubmitButton>

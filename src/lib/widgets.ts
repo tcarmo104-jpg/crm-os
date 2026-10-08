@@ -31,3 +31,23 @@ export function buildPrefilledMessage(name: string, userMessage: string): string
   const base = userMessage.trim() || 'Hola, quiero más información.';
   return `Hola, soy ${name.trim()}. ${base}`;
 }
+
+// --------------------------------------------------------------------------------------------- horario de atención
+/** 0 = domingo … 6 = sábado, igual que `extract(dow from …)` en Postgres — así el formulario y la base hablan el mismo idioma. */
+export const WEEKDAY_LABELS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'] as const;
+const TIME_RE = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
+
+export interface BusinessHourRange { day: number; from: string; to: string }
+export interface BusinessHourFormEntry { day: number; active: boolean; from: string; to: string }
+
+/** A partir de las 7 filas del formulario (una por día), arma el arreglo que guarda la base: solo los días
+ * marcados como activos, y solo si su horario es válido (de lo contrario esa fila simplemente no se guarda). */
+export function buildBusinessHours(entries: BusinessHourFormEntry[]): BusinessHourRange[] {
+  const out: BusinessHourRange[] = [];
+  for (const e of entries) {
+    if (!e.active) continue;
+    if (!TIME_RE.test(e.from) || !TIME_RE.test(e.to) || e.from >= e.to) continue;
+    out.push({ day: e.day, from: e.from, to: e.to });
+  }
+  return out;
+}

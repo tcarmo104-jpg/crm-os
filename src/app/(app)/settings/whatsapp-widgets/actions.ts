@@ -10,9 +10,13 @@ import * as repo from '@/repositories/widgets';
 import { setFlash } from '@/lib/flash';
 
 function readInput(fd: FormData) {
+  const businessHours = Array.from({ length: 7 }, (_, day) => ({
+    day, active: fd.get(`bh_active_${day}`) === 'on', from: str(fd.get(`bh_from_${day}`)) || '09:00', to: str(fd.get(`bh_to_${day}`)) || '18:00',
+  }));
   return { channelId: str(fd.get('channelId')), name: str(fd.get('name')), buttonText: str(fd.get('buttonText')), initialMessage: str(fd.get('initialMessage')),
     position: str(fd.get('position')), showText: fd.get('showText') === 'on', color: str(fd.get('color')), size: str(fd.get('size')), domains: str(fd.get('domains')), region: str(fd.get('region')),
-    messageTemplate: str(fd.get('messageTemplate')) };
+    messageTemplate: str(fd.get('messageTemplate')), businessHours, timezone: str(fd.get('timezone')) || 'America/Bogota', outOfHoursMessage: str(fd.get('outOfHoursMessage')),
+    showAdvisor: fd.get('showAdvisor') === 'on', advisorUserId: str(fd.get('advisorUserId')) };
 }
 
 export async function createWidgetAction(_prev: ActionState, fd: FormData): Promise<ActionState> {

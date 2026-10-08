@@ -108,6 +108,16 @@ sentinel() { case "$1" in 6) echo custom_field_definitions;; 7) echo customers;;
       echo "    raise exception 'Este proyecto YA tiene instalada la migración 0033 (record_comment_reply ya devuelve uuid). No ejecutes este archivo: avísame.';"
       echo "  end if;"
     fi
+    if [ "$FROM" = "38" ]; then
+      echo "  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'whatsapp_widgets' and column_name = 'business_hours') then"
+      echo "    raise exception 'Este proyecto YA tiene instalada la migración 0038 (existe whatsapp_widgets.business_hours). No ejecutes este archivo: avísame.';"
+      echo "  end if;"
+    fi
+    if [ "$FROM" -ge 38 ]; then
+      echo "  if to_regclass('public.widget_options') is null then"
+      echo "    raise exception 'FALTA la migración 0037 (campos y opciones del widget). Instala primero setup-desde-0037.sql o avísame.';"
+      echo "  end if;"
+    fi
     if [ "$FROM" = "23" ]; then
       echo "  if to_regprocedure('public.start_task(uuid)') is not null then"
       echo "    raise exception 'Este proyecto YA tiene instalada la migración 0023 (existe la función start_task). No ejecutes este archivo: avísame.';"

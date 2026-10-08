@@ -11,9 +11,11 @@ const MAX_BODY_BYTES = 8 * 1024;
 
 const bodySchema = z.object({
   name: z.string().trim().min(1).max(160), phone: z.string().trim().min(5).max(30), company: z.string().trim().max(160).optional(),
-  message: z.string().trim().max(500).optional(), pageUrl: z.string().trim().max(500).optional(), referrer: z.string().trim().max(500).optional(),
+  message: z.string().trim().max(700).optional(), pageUrl: z.string().trim().max(500).optional(), referrer: z.string().trim().max(500).optional(),
   productUrl: z.string().trim().max(500).optional(), utmSource: z.string().trim().max(120).optional(), utmMedium: z.string().trim().max(120).optional(),
   utmCampaign: z.string().trim().max(120).optional(), utmContent: z.string().trim().max(120).optional(),
+  // Entrega 2: qué intención eligió (si el widget tiene menú) y las respuestas de sus campos propios.
+  optionId: z.string().uuid().optional(), fieldValues: z.record(z.string().max(60), z.string().max(500)).optional(),
 });
 
 const REASON_MESSAGE: Record<string, string> = {
@@ -51,12 +53,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ widgetI
     p_widget_id: widgetId, p_origin_host: host, p_name: b.name, p_phone: b.phone, p_company: b.company ?? null, p_message: b.message ?? null,
     p_page_url: b.pageUrl ?? null, p_referrer: b.referrer ?? null, p_product_url: b.productUrl ?? null,
     p_utm_source: b.utmSource ?? null, p_utm_medium: b.utmMedium ?? null, p_utm_campaign: b.utmCampaign ?? null, p_utm_content: b.utmContent ?? null,
+    p_option_id: b.optionId ?? null, p_field_values: b.fieldValues ?? null,
   });
   if (r.error) return NextResponse.json({ ok: false, message: 'Algo salió mal. Inténtalo de nuevo en un momento.' }, { status: 500, headers: CORS });
   const d = r.data as { ok: boolean; reason?: string; phone?: string };
   if (!d.ok) return NextResponse.json({ ok: false, message: REASON_MESSAGE[d.reason ?? ''] ?? REASON_MESSAGE.internal_error }, { status: 200, headers: CORS });
 
-  const link = buildWhatsAppLink(d.phone!, buildPrefilledMessage(b.name, b.message ?? ''));
+  // El texto que de verdad llega a WhatsApp: el widget (0038) ya lo arma del lado del visitante con la
+  // plantilla que corresponda (de la intención, o la del widget) — aquí solo se envuelve como red de
+  // seguridad si por algún motivo llegara vacío, exactamente con el mismo formato de siempre.
+  const link = buildWhatsAppLink(d.phone!, b.message && b.message.trim() ? b.message : buildPrefilledMessage(b.name, ''));
   return NextResponse.json({ ok: true, redirectUrl: link }, { headers: CORS });
 }
 

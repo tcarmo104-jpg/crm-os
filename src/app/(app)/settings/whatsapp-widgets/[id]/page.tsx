@@ -7,6 +7,7 @@ import { readFlash } from '@/lib/flash';
 import { getWidget } from '@/repositories/widgets';
 import { listWidgetOptions } from '@/repositories/widget-options';
 import { listChannels } from '@/repositories/inbox';
+import { listMembers } from '@/repositories/members';
 import { serverOrigin } from '@/server/origin';
 import { ConfirmButton, Notice } from '@/components/ui';
 import { WidgetForm } from '@/components/widget-form';
@@ -25,8 +26,8 @@ export default async function EditWidgetPage({ params }: { params: Promise<{ id:
   const org = session.active!;
   if (!can(session, 'settings:manage')) return <><header className="page-head"><h1>Widget</h1></header><Notice kind="error">No tienes acceso a esta sección.</Notice></>;
   const db = await createClient();
-  const [widget, allChannels, options, flash, origin] = await Promise.all([
-    getWidget(db, id), listChannels(db, org.orgId), listWidgetOptions(db, id), readFlash(), serverOrigin(),
+  const [widget, allChannels, options, members, flash, origin] = await Promise.all([
+    getWidget(db, id), listChannels(db, org.orgId), listWidgetOptions(db, id), listMembers(db, org.orgId), readFlash(), serverOrigin(),
   ]);
   if (!widget) notFound();
   const channels = allChannels.filter((c) => c.kind === 'whatsapp' && c.connectionStatus === 'connected');
@@ -97,7 +98,7 @@ export default async function EditWidgetPage({ params }: { params: Promise<{ id:
       </section>
 
       <section className="panel">
-        <WidgetForm mode="edit" widgetId={widget.id} initial={widget} channels={channels} action={updateWidgetAction} />
+        <WidgetForm mode="edit" widgetId={widget.id} initial={widget} channels={channels} members={members} action={updateWidgetAction} />
       </section>
     </>
   );

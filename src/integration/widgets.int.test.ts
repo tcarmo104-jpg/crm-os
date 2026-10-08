@@ -32,12 +32,12 @@ beforeAll(async () => {
 
 describe('crear, listar, editar y borrar un widget', () => {
   it('el ciclo completo funciona, y los dominios quedan guardados', async () => {
-    const id = await widgets.createWidget(a, org, { channelId, name: 'Web principal', buttonText: 'Escríbenos', initialMessage: 'Hola 👋', position: 'bottom-right', showText: true, color: '#25D366', size: 'medium', allowedDomains: ['arkos.com.co'], region: '  Medellín ' });
+    const id = await widgets.createWidget(a, org, { channelId, name: 'Web principal', buttonText: 'Escríbenos', initialMessage: 'Hola 👋', position: 'bottom-right', showText: true, color: '#25D366', size: 'medium', allowedDomains: ['arkos.com.co'], region: '  Medellín ', messageTemplate: null, businessHours: [], timezone: 'America/Bogota', outOfHoursMessage: null, showAdvisor: false, advisorUserId: null });
     const list = await widgets.listWidgets(a, org);
     expect(list.some((w) => w.id === id && w.name === 'Web principal')).toBe(true);
     expect((await widgets.getWidget(a, id))?.region).toBe('Medellín');   // la base de datos la guarda limpia
 
-    await widgets.updateWidget(a, id, { channelId, name: 'Web principal (editado)', buttonText: 'Chatea', initialMessage: null, position: 'bottom-left', showText: false, color: '#128C7E', size: 'large', allowedDomains: ['arkos.com.co', 'tienda.arkos.com.co'], region: null });
+    await widgets.updateWidget(a, id, { channelId, name: 'Web principal (editado)', buttonText: 'Chatea', initialMessage: null, position: 'bottom-left', showText: false, color: '#128C7E', size: 'large', allowedDomains: ['arkos.com.co', 'tienda.arkos.com.co'], region: null, messageTemplate: null, businessHours: [], timezone: 'America/Bogota', outOfHoursMessage: null, showAdvisor: false, advisorUserId: null });
     const updated = await widgets.getWidget(a, id);
     expect(updated).toMatchObject({ name: 'Web principal (editado)', position: 'bottom-left', allowedDomains: ['arkos.com.co', 'tienda.arkos.com.co'], region: null });
 
@@ -47,13 +47,13 @@ describe('crear, listar, editar y borrar un widget', () => {
 
   it('un vendedor (sin settings:manage) no ve ni puede crear widgets', async () => {
     expect(await widgets.listWidgets(s1, org)).toEqual([]);
-    await expect(widgets.createWidget(s1, org, { channelId, name: 'Intento', buttonText: 'X', initialMessage: null, position: 'bottom-right', showText: true, color: '#25D366', size: 'medium', allowedDomains: ['x.com'], region: null })).rejects.toThrow();
+    await expect(widgets.createWidget(s1, org, { channelId, name: 'Intento', buttonText: 'X', initialMessage: null, position: 'bottom-right', showText: true, color: '#25D366', size: 'medium', allowedDomains: ['x.com'], region: null, messageTemplate: null, businessHours: [], timezone: 'America/Bogota', outOfHoursMessage: null, showAdvisor: false, advisorUserId: null })).rejects.toThrow();
   });
 });
 
 describe('la ruta pública real crea un contacto y devuelve el enlace de WhatsApp', () => {
   it('de punta a punta: configuración pública + inicio de conversación', async () => {
-    const id = await widgets.createWidget(a, org, { channelId, name: 'Para probar la API', buttonText: 'Escríbenos', initialMessage: null, position: 'bottom-right', showText: true, color: '#25D366', size: 'medium', allowedDomains: ['arkos-int.com'], region: null });
+    const id = await widgets.createWidget(a, org, { channelId, name: 'Para probar la API', buttonText: 'Escríbenos', initialMessage: null, position: 'bottom-right', showText: true, color: '#25D366', size: 'medium', allowedDomains: ['arkos-int.com'], region: null, messageTemplate: null, businessHours: [], timezone: 'America/Bogota', outOfHoursMessage: null, showAdvisor: false, advisorUserId: null });
 
     const cfgRes = await fetch(`${process.env.APP_URL ?? 'http://127.0.0.1:3999'}/api/widget/${id}/config`).catch(() => null);
     if (cfgRes) {

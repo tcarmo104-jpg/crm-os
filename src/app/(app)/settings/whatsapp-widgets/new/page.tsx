@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { can, getSession } from '@/lib/session';
 import { listChannels } from '@/repositories/inbox';
+import { listMembers } from '@/repositories/members';
 import { Notice } from '@/components/ui';
 import { WidgetForm } from '@/components/widget-form';
 import { createWidgetAction } from '../actions';
@@ -14,7 +15,8 @@ export default async function NewWidgetPage() {
   const org = session.active!;
   if (!can(session, 'settings:manage')) return <><header className="page-head"><h1>Nuevo widget</h1></header><Notice kind="error">No tienes acceso a esta sección.</Notice></>;
   const db = await createClient();
-  const channels = (await listChannels(db, org.orgId)).filter((c) => c.kind === 'whatsapp' && c.connectionStatus === 'connected');
+  const [allChannels, members] = await Promise.all([listChannels(db, org.orgId), listMembers(db, org.orgId)]);
+  const channels = allChannels.filter((c) => c.kind === 'whatsapp' && c.connectionStatus === 'connected');
 
   return (
     <>
@@ -23,7 +25,7 @@ export default async function NewWidgetPage() {
         <h1>Nuevo widget</h1>
       </header>
       <section className="panel">
-        <WidgetForm mode="create" channels={channels} action={createWidgetAction} />
+        <WidgetForm mode="create" channels={channels} members={members} action={createWidgetAction} />
       </section>
     </>
   );
