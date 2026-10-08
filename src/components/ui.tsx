@@ -4,6 +4,7 @@ import { useFormStatus } from 'react-dom';
 import { createContext, useContext, useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Icon } from './Icon';
+import type { IconName } from '@/lib/nav';
 
 export function SubmitButton({
   children, pendingLabel, className = 'btn btn-primary', ...rest
@@ -112,13 +113,23 @@ export function CloseOnSuccess({ ok }: { ok: boolean | undefined }) {
   return null;
 }
 
-/** Tarjeta de indicador (usada en «Hoy» y en el Dashboard): una cifra, su etiqueta y un dato de apoyo. */
-export function Kpi({ href, label, value, sub, tone }: { href: string; label: string; value: string; sub: string; tone: 'primary' | 'ok' | 'warn' | 'danger' | 'neutral' }) {
+/** Tarjeta de indicador (usada en «Hoy» y en Analítica): una cifra, su etiqueta y un dato de apoyo.
+ * Opcionales: un ícono de color y la variación contra el período anterior (`delta` en %, `null` = sin base). */
+export function Kpi({ href, label, value, sub, tone, icon, delta }: {
+  href: string; label: string; value: string; sub: string; tone: 'primary' | 'ok' | 'warn' | 'danger' | 'neutral';
+  icon?: IconName; delta?: number | null;
+}) {
   return (
-    <Link href={href} className={`kpi kpi--${tone}`}>
+    <Link href={href} className={`kpi kpi--${tone}${icon ? ' kpi--icon' : ''}`}>
+      {icon ? <span className="kpi-icon" aria-hidden="true"><Icon name={icon} size={20} /></span> : null}
       <span className="kpi-label">{label}</span>
       <span className="kpi-value">{value}</span>
       <span className="kpi-sub">{sub}</span>
+      {delta !== undefined && delta !== null ? (
+        <span className={`kpi-delta ${delta > 0 ? 'kpi-delta--up' : delta < 0 ? 'kpi-delta--down' : 'kpi-delta--flat'}`} title="Comparado con el período anterior del mismo tamaño">
+          {delta > 0 ? '↑ ' : delta < 0 ? '↓ ' : '= '}{Math.abs(delta)}%<span className="sr-only"> frente al período anterior</span>
+        </span>
+      ) : null}
     </Link>
   );
 }

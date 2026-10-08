@@ -312,3 +312,117 @@ export function formatDuration(msValue: number | null): string {
   const d = Math.floor(h / 24), rh = h % 24;
   return rh ? `${d} d ${rh} h` : `${d} d`;
 }
+
+// ---------------------------------------------------------------------------
+// Pantalla única de Analítica (pestañas): qué pestañas hay, qué filtros globales aplican en cada una, y cómo
+// se arma el enlace a una pestaña conservando los filtros. Lógica pura: la usan el layout, las pestañas y el CSV.
+// ---------------------------------------------------------------------------
+export const ANALYTICS_BASE = '/analytics';
+export type GlobalFilterKey = 'periodo' | 'personas' | 'equipos' | 'canal';
+export interface AnalyticsTab { key: string; label: string; href: string; applies: GlobalFilterKey[]; hint?: string }
+export const ANALYTICS_TABS: AnalyticsTab[] = [
+  { key: 'resumen', label: 'Resumen', href: ANALYTICS_BASE, applies: ['periodo', 'personas', 'equipos', 'canal'] },
+  { key: 'embudo', label: 'Embudo', href: `${ANALYTICS_BASE}/embudo`, applies: ['personas', 'equipos'], hint: 'El embudo es una foto de hoy: el período y el canal no aplican aquí.' },
+  { key: 'desempeno', label: 'Desempeño', href: `${ANALYTICS_BASE}/desempeno`, applies: ['periodo', 'personas', 'equipos'], hint: 'El canal no aplica al desempeño por persona.' },
+  { key: 'reportes', label: 'Reportes', href: `${ANALYTICS_BASE}/reportes`, applies: ['periodo', 'personas', 'equipos', 'canal'], hint: 'El canal filtra los leads (las ventas no tienen canal).' },
+  { key: 'widget', label: 'Widget de WhatsApp', href: `${ANALYTICS_BASE}/widget`, applies: ['periodo', 'personas', 'equipos'], hint: 'El widget siempre es WhatsApp: el canal no aplica.' },
+];
+/** La pestaña de una ruta (la más específica gana; cualquier otra cosa bajo /analytics es el Resumen). */
+export function tabOf(pathname: string): AnalyticsTab {
+  const clean = pathname.replace(/\/+$/, '') || '/';
+  return [...ANALYTICS_TABS].sort((a, b) => b.href.length - a.href.length).find((t) => clean === t.href || clean.startsWith(`${t.href}/`)) ?? ANALYTICS_TABS[0]!;
+}
+/** Los parámetros que viajan entre pestañas: solo los filtros globales. Los propios de una pestaña (pipeline,
+ * desglose del widget…) se quedan en su pestaña: no tienen sentido en las demás. */
+export const GLOBAL_FILTER_PARAMS = ['periodo', 'desde', 'hasta', 'personas', 'equipos', 'canal'] as const;
+export function tabHref(tab: AnalyticsTab, current: URLSearchParams | Record<string, string | string[] | undefined>): string {
+  const qs = new URLSearchParams();
+  const get = (k: string): string[] => (current instanceof URLSearchParams ? current.getAll(k) : ([] as string[]).concat(current[k] ?? []));
+  for (const k of GLOBAL_FILTER_PARAMS) for (const v of get(k)) if (v) qs.append(k, v);
+  const s = qs.toString();
+  return s ? `${tab.href}?${s}` : tab.href;
+}
+
+/** ¿Este dueño pasa los filtros de personas y equipos? (el mismo criterio que usaba el Dashboard; ahora lo
+ * comparten todas las pestañas y la exportación a CSV). */
+export function personTeamMatcher(f: { personas: string[]; equipos: string[] }, teamOf: Map<string, string | null>) {
+  return (ownerId: string | null): boolean => {
+    if (f.personas.length > 0 && !(ownerId && f.personas.includes(ownerId))) return false;
+    if (f.equipos.length > 0 && !(ownerId && f.equipos.includes(teamOf.get(ownerId) ?? ''))) return false;
+    return true;
+  };
+}
+
+/** Segmentos de una dona: porcentaje y dónde empieza cada uno (0–100), de mayor a menor. Los grupos chicos
+ * se juntan en «Otros» para que la dona siga siendo legible. */
+export interface DonutSegment { label: string; value: number; pct: number; offset: number }
+export function donutSegments(rows: { label: string; value: number }[], maxSlices = 6): DonutSegment[] {
+  const positive = rows.filter((r) => r.value > 0).sort((a, b) => b.value - a.value);
+  const head = positive.slice(0, positive.length > maxSlices ? maxSlices - 1 : maxSlices);
+  const rest = positive.slice(head.length);
+  const merged = rest.length ? [...head, { label: 'Otros', value: rest.reduce((t, r) => t + r.value, 0) }] : head;
+  const total = merged.reduce((t, r) => t + r.value, 0);
+  let acc = 0;
+  return merged.map((r) => {
+    const pct = total === 0 ? 0 : (r.value / total) * 100;
+    const seg = { label: r.label, value: r.value, pct: Math.round(pct * 10) / 10, offset: acc };
+    acc += pct;
+    return seg;
+  });
+}
+
+/** Iniciales para el avatar de una persona («Laura Gómez» → «LG»; un correo → su primera letra). */
+export function initials(name: string): string {
+  const parts = name.replace(/@.*$/, '').split(/[\s._-]+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? '?') + (parts.length > 1 ? parts[parts.length - 1]![0] : '')).toUpperCase();
+}
+
+/** Los filtros globales de una URL de Analítica (para mostrarlos en la barra). */
+export interface GlobalFilterValue { periodo: DatePreset; desde: string; hasta: string; personas: string[]; equipos: string[]; canal: string }
+export function readGlobalFilters(sp: URLSearchParams): GlobalFilterValue {
+  const p = sp.get('periodo');
+  return { periodo: p && (DATE_PRESETS as readonly string[]).includes(p) ? (p as DatePreset) : 'this_month', desde: sp.get('desde') ?? '', hasta: sp.get('hasta') ?? '',
+    personas: sp.getAll('personas'), equipos: sp.getAll('equipos'), canal: sp.get('canal') ?? '' };
+}
+/** Escribe los filtros globales sobre una URL, conservando los parámetros propios de la pestaña (pipeline,
+ * desglose del widget…). Los valores por defecto no se escriben: la URL queda corta y fácil de compartir. */
+export function withGlobalFilters(current: URLSearchParams, f: GlobalFilterValue): string {
+  const next = new URLSearchParams(current);
+  for (const k of GLOBAL_FILTER_PARAMS) next.delete(k);
+  if (f.periodo !== 'this_month') next.set('periodo', f.periodo);
+  if (f.periodo === 'custom') { if (f.desde) next.set('desde', f.desde); if (f.hasta) next.set('hasta', f.hasta); }
+  for (const x of f.personas) next.append('personas', x);
+  for (const x of f.equipos) next.append('equipos', x);
+  if (f.canal) next.set('canal', f.canal);
+  return next.toString();
+}
+/** Cola de navegación de Analítica: NUNCA hay dos navegaciones del router en vuelo a la vez. Con dos en paralelo,
+ * a veces la primera (resuelta tarde) pisaba el contenido de la segunda: la URL decía «Medellín + WhatsApp» y los
+ * datos eran solo de «Medellín» (comprobado en navegador real, 1 de cada ~40). Ahora, si llega un cambio mientras
+ * otro carga, se guarda solo el ÚLTIMO y se navega a él apenas termine el actual (los intermedios se saltan).
+ * La barra muestra siempre `queued ?? inFlight ?? lo confirmado`: lo último que la persona pidió. */
+export interface NavQueue { inFlight: string | null; queued: string | null }
+export const NAV_IDLE: NavQueue = { inFlight: null, queued: null };
+export function navRequest(q: NavQueue, href: string): { queue: NavQueue; navigate: string | null } {
+  if (q.inFlight === null) return { queue: { inFlight: href, queued: null }, navigate: href };
+  return { queue: { inFlight: q.inFlight, queued: href === q.inFlight ? null : href }, navigate: null };
+}
+/** Llegó (se confirmó) una URL. `external` = no la pidió la barra (atrás/adelante, carga inicial): se adopta. */
+export function navCommitted(q: NavQueue, committed: string): { queue: NavQueue; navigate: string | null; external: boolean } {
+  if (q.inFlight === null) return { queue: NAV_IDLE, navigate: null, external: true };
+  if (committed !== q.inFlight) return { queue: NAV_IDLE, navigate: null, external: true };   // «atrás» a mitad de una carga: gana el navegador
+  if (q.queued !== null && q.queued !== committed) return { queue: { inFlight: q.queued, queued: null }, navigate: q.queued, external: false };
+  return { queue: NAV_IDLE, navigate: null, external: false };
+}
+
+/** Máximo y paso del eje Y: 4 tramos «redondos» (1, 2, 2,5, 5 × 10ⁿ). Si los datos son conteos (todos enteros),
+ * el paso también es entero — nunca «0,25 leads» —; los montos grandes siguen usando pasos redondos. */
+export function axisScale(values: number[]): { max: number; step: number } {
+  const top = Math.max(0, ...values);
+  if (top <= 0) return { max: 4, step: 1 };
+  const raw = top / 4;
+  const mag = 10 ** Math.floor(Math.log10(raw));
+  let step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((x) => x >= raw)!;
+  if (values.every((v) => Number.isInteger(v)) && !Number.isInteger(step)) step = Math.ceil(step);
+  return { max: step * 4, step };
+}

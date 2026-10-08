@@ -49,7 +49,7 @@ WhatsApp Business y entra al Inbox exactamente como cualquier mensaje de WhatsAp
 - Fase 3 (hecha): reglas de distribución automática (round robin, por región, por equipo, por horario), en
   Configuración → Distribución de conversaciones. La región sale de la configuración de cada widget, y solo
   un contacto nuevo consume turno: si el teléfono ya existía, conserva su dueño (o sigue sin dueño).
-- Fase 4 (hecha): métricas del widget en Analítica → Widget de WhatsApp (`/reports/widget`). Detalle abajo.
+- Fase 4 (hecha): métricas del widget en Analítica → pestaña Widget de WhatsApp (`/analytics/widget`; antes `/reports/widget`, que ahora redirige). Detalle abajo.
 - Fase 5: vista previa en vivo del botón, tabla de administración con estadísticas por widget.
 
 ## Fase 2: oportunidad/cotización desde el Inbox, y ver el origen del cliente

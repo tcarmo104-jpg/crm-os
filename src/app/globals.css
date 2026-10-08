@@ -728,3 +728,138 @@ dialog.modal::backdrop { background: rgba(8, 20, 40, 0.45); backdrop-filter: blu
    ========================================================================== */
 .install-code { display: flex; flex-direction: column; gap: var(--s-3); align-items: flex-start; }
 .install-code pre { width: 100%; background: var(--surface-2); border-radius: var(--r-control); padding: var(--s-4); overflow-x: auto; font-size: var(--fs-small); margin: 0; }
+
+/* =============================================================================
+   Analítica en una sola pantalla (pestañas): tarjetas con ícono, gráficos «vivos», filtros fijos arriba.
+   Solo tokens del proyecto, así que el modo oscuro sale solo.
+   ============================================================================= */
+:root { --chart-1: #2f6fed; --chart-2: #12a37a; --chart-3: #f5a524; --chart-4: #8b5cf6; --chart-5: #ef4f6b; --chart-6: #14b3c7; }
+[data-theme='dark'] { --chart-1: #6b9bff; --chart-2: #4fd6a8; --chart-3: #ffc15e; --chart-4: #b49bff; --chart-5: #ff8aa0; --chart-6: #5fd8e8; }
+
+/* ---- encabezado, pestañas y filtros: viven en el layout y no se vuelven a pintar al cambiar de pestaña ---- */
+.an-shell { display: flex; flex-direction: column; gap: var(--s-4); }
+.an-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.an-tabs::-webkit-scrollbar { display: none; }
+.an-tabs a { position: relative; padding: 10px 16px; white-space: nowrap; color: var(--muted); font-weight: 600; font-size: var(--fs-small); text-decoration: none; border-radius: var(--r-control) var(--r-control) 0 0; transition: color var(--ease), background var(--ease); }
+.an-tabs a:hover { color: var(--ink); background: var(--hover); }
+.an-tabs a[aria-current='page'] { color: var(--primary); }
+.an-tabs a[aria-current='page']::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 3px; border-radius: 3px 3px 0 0; background: var(--primary); }
+.an-filters { position: sticky; top: calc(var(--topbar-h) + 4px); z-index: 5; display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--s-3);
+  padding: var(--s-3) var(--s-4); background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(8px);
+  border: 1px solid var(--line); border-radius: var(--r-panel); box-shadow: var(--shadow-1); }
+.an-filters .field { margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.an-filters .select, .an-filters .input { min-width: 140px; }
+.an-filters .field[data-applies='false'] { opacity: 0.4; }
+.an-filters-actions { display: flex; gap: 8px; align-items: center; margin-left: auto; }
+.an-filters-note { flex-basis: 100%; margin: 0; font-size: var(--fs-caption); color: var(--muted); }
+.an-picker { position: relative; }
+.an-picker > summary { list-style: none; cursor: pointer; min-width: 160px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.an-picker > summary::-webkit-details-marker { display: none; }
+.an-picker-menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; min-width: 220px; max-height: 280px; overflow: auto; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-control); box-shadow: var(--shadow-2); display: flex; flex-direction: column; }
+.an-picker-menu label { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; font-size: var(--fs-small); cursor: pointer; }
+.an-picker-menu label:hover { background: var(--hover); }
+.an-progress { position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 60; overflow: hidden; pointer-events: none; }
+.an-progress::after { content: ''; position: absolute; inset: 0; width: 40%; background: var(--primary); animation: an-indet 1s ease-in-out infinite; }
+@keyframes an-indet { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+.an-content { display: flex; flex-direction: column; gap: var(--s-5); transition: opacity 0.15s ease; }
+.an-content[data-pending='true'] { opacity: 0.55; }
+.an-grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: var(--s-5); }
+.an-grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: var(--s-5); }
+.an-grid-wide { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--s-5); }
+@media (max-width: 980px) { .an-grid-wide { grid-template-columns: 1fr; } }
+.an-panel-sub { margin: -8px 0 0; font-size: var(--fs-small); color: var(--muted); }
+
+/* ---- tarjetas de indicador con ícono y variación ---- */
+/* La cifra se ajusta al ancho real de la tarjeta (container query): un monto largo no se corta. */
+.kpi { container-type: inline-size; }
+.kpi-value { white-space: nowrap; font-size: clamp(1.05rem, 11.5cqi, 1.75rem); }
+.kpi--icon .kpi-label { padding-right: 48px; min-height: 40px; }
+.kpi-icon { position: absolute; top: 14px; right: 14px; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; color: var(--neutral); background: var(--neutral-soft); }
+.kpi--primary .kpi-icon { color: var(--primary); background: var(--primary-soft); }
+.kpi--ok .kpi-icon { color: var(--ok); background: var(--ok-soft); }
+.kpi--warn .kpi-icon { color: var(--warn); background: var(--warn-soft); }
+.kpi--danger .kpi-icon { color: var(--danger); background: var(--danger-soft); }
+.kpi-delta { align-self: flex-start; margin-top: 6px; padding: 2px 8px; border-radius: var(--r-pill); font-size: var(--fs-caption); font-weight: 700; font-variant-numeric: tabular-nums; }
+.kpi-delta--up { color: var(--ok); background: var(--ok-soft); }
+.kpi-delta--down { color: var(--danger); background: var(--danger-soft); }
+.kpi-delta--flat { color: var(--muted); background: var(--neutral-soft); }
+
+/* ---- evolución (línea / área) ---- */
+.chart { display: flex; flex-direction: column; gap: 8px; }
+.chart-plot { display: grid; grid-template-columns: auto 1fr; gap: 10px; }
+.chart-yaxis { display: flex; flex-direction: column; justify-content: space-between; font-size: 11px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; margin: -0.5em 0; }
+.chart-area { position: relative; min-width: 0; }
+.chart-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.chart-grid { stroke: var(--line-soft); stroke-width: 1; }
+.chart-line { fill: none; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.chart-fill { animation: an-fade 0.6s ease both; }
+.chart-dot { position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; border: 2px solid var(--surface); transition: transform var(--ease); }
+.chart-dot:hover { transform: scale(1.6); z-index: 2; }
+.chart-xlabels { display: flex; justify-content: space-between; padding-left: 48px; font-size: var(--fs-caption); color: var(--muted); }
+
+/* ---- columnas ---- */
+.colchart { display: flex; align-items: stretch; gap: 10px; }
+.colchart-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.colchart-value { font-size: var(--fs-caption); font-weight: 700; color: var(--ink-2); white-space: nowrap; font-variant-numeric: tabular-nums; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.colchart-track { flex: 1; width: 100%; max-width: 56px; display: flex; align-items: flex-end; background: var(--surface-2); border-radius: 8px; overflow: hidden; }
+.colchart-bar { width: 100%; border-radius: 8px 8px 0 0; transform-origin: bottom; animation: an-grow-y 0.55s cubic-bezier(.2,.8,.2,1) both; transition: filter var(--ease); }
+.colchart-col:hover .colchart-bar { filter: brightness(1.12); }
+.colchart-label { font-size: var(--fs-caption); color: var(--muted); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- dona ---- */
+.donut { display: flex; align-items: center; gap: var(--s-5); flex-wrap: wrap; }
+.donut-figure { position: relative; flex: none; }
+.donut-svg { width: 100%; height: 100%; }
+.donut-track { fill: none; stroke: var(--surface-2); stroke-width: 5.5; }
+.donut-seg { fill: none; stroke-width: 5.5; transition: stroke-width var(--ease); animation: an-fade 0.6s ease both; }
+.donut-seg:hover { stroke-width: 7; }
+.donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; pointer-events: none; }
+.donut-center strong { max-width: 74%; font-size: 1.35rem; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.donut-center span { font-size: var(--fs-caption); color: var(--muted); }
+.donut-legend { list-style: none; margin: 0; padding: 0; flex: 1 1 180px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.donut-legend li { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 8px; font-size: var(--fs-small); }
+.donut-legend-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.donut-legend-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+.donut-legend-pct { color: var(--muted); font-size: var(--fs-caption); min-width: 42px; text-align: right; font-variant-numeric: tabular-nums; }
+.dist-bar-fill { transform-origin: left; animation: an-grow-x 0.6s cubic-bezier(.2,.8,.2,1) both; }
+
+/* ---- embudo visual: centrado, se angosta etapa a etapa ---- */
+.an-funnel { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.an-funnel-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: min(100%, 260px); max-width: 100%; padding: 12px 18px; border-radius: 10px; color: #fff;
+  box-shadow: var(--shadow-1); animation: an-grow-x 0.6s cubic-bezier(.2,.8,.2,1) both; transform-origin: center; transition: filter var(--ease); }
+.an-funnel-bar:hover { filter: brightness(1.08); }
+.an-funnel-bar strong { font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.an-funnel-bar span { font-variant-numeric: tabular-nums; font-weight: 600; font-size: var(--fs-small); white-space: nowrap; }
+.an-funnel-conv { font-size: var(--fs-caption); color: var(--muted); padding: 2px 0; }
+.an-funnel-conv--low { color: var(--danger); font-weight: 700; }
+
+/* ---- desempeño: ranking con avatar ---- */
+.an-rank { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+/* Columnas numéricas de ancho fijo: cada fila es su propia grilla, y con «auto» un monto más largo encogía la barra de esa fila. */
+.an-rank-head, .an-rank li { display: grid; grid-template-columns: 28px 36px minmax(0, 1.4fr) minmax(120px, 1fr) 64px 124px 72px 64px; align-items: center; gap: 12px; padding: 10px 4px; }
+.an-rank-head { padding-top: 0; font-size: var(--fs-caption); font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.an-rank li { border-top: 1px solid var(--line-soft); }
+.an-rank-pos { font-weight: 700; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
+.an-avatar { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-size: 0.78rem; font-weight: 700; color: #fff; }
+.an-rank-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.an-rank-name small { display: block; font-weight: 400; color: var(--muted); }
+.an-rank-rate { display: flex; align-items: center; gap: 8px; font-size: var(--fs-small); font-variant-numeric: tabular-nums; }
+.an-rank-rate .dist-bar-track { flex: 1; }
+.an-rank-rate-num { min-width: 40px; text-align: right; }
+.an-rank-num { text-align: right; font-variant-numeric: tabular-nums; font-size: var(--fs-small); }
+@media (max-width: 860px) {
+  .an-rank-head { display: none; }
+  .an-rank li { grid-template-columns: 24px 32px minmax(0, 1fr) auto auto; gap: 10px; }   /* posición, avatar, nombre, ganadas, monto */
+  .an-rank-rate, .an-rank-num--opt { display: none; }
+}
+
+/* ---- esqueleto mientras carga una pestaña ---- */
+.an-skel { border-radius: var(--r-panel); background: linear-gradient(90deg, var(--surface-2) 25%, var(--hover) 50%, var(--surface-2) 75%); background-size: 200% 100%; animation: an-shimmer 1.2s linear infinite; }
+
+@keyframes an-grow-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes an-grow-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes an-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes an-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .colchart-bar, .dist-bar-fill, .donut-seg, .chart-fill, .an-funnel-bar, .an-skel, .an-progress::after { animation: none !important; }
+}

@@ -4,8 +4,9 @@ import { can, getSession } from '@/lib/session';
 import { listOpportunities } from '@/repositories/opportunities';
 import { listLeads } from '@/repositories/leads';
 import { listSales } from '@/repositories/sales';
-import { listMembers } from '@/repositories/members';
-import { resolveDateRange, groupSalesByPeriod, groupLeadsBySource, buildPerformance, parsePeriod, parseWidgetFilters, breakdownWidgetFacts, formatDuration, WIDGET_DIMENSION_LABEL } from '@/lib/analytics';
+import { listTasks } from '@/repositories/tasks';
+import { loadAnalyticsScope } from '@/services/analytics-scope';
+import { groupSalesByPeriod, groupLeadsBySource, buildPerformance, parseWidgetFilters, breakdownWidgetFacts, formatDuration, WIDGET_DIMENSION_LABEL } from '@/lib/analytics';
 import { loadWidgetMetrics } from '@/services/widget-metrics';
 import { toCsv } from '@/lib/csv';
 import { formatMoney } from '@/lib/money';
@@ -22,33 +23,35 @@ export async function GET(request: NextRequest) {
   const db = await createClient();
   const sp = request.nextUrl.searchParams;
   const type = sp.get('type');
-  const { preset, desde, hasta } = parsePeriod({ periodo: sp.get('periodo') ?? undefined, desde: sp.get('desde') ?? undefined, hasta: sp.get('hasta') ?? undefined });
-  const range = resolveDateRange(preset, new Date(), org.orgTimezone, { from: desde, to: hasta });
+  // Los mismos filtros globales que la pantalla de Analítica (período, asesor, equipo, canal): lo que se
+  // descarga es exactamente lo que se ve en la pestaña.
+  const scope = await loadAnalyticsScope(db, org, sp);
+  const { range, matches, filters } = scope;
 
   let csv: string; let filename: string;
   if (type === 'ventas') {
     const sales = await listSales(db, { orgId: org.orgId, soldFrom: range.from, soldTo: range.to, status: 'delivered', limit: 2000 });
-    const buckets = groupSalesByPeriod(sales.items, org.orgTimezone, 'month');
+    const buckets = groupSalesByPeriod(sales.items.filter((x) => matches(x.ownerId)), org.orgTimezone, 'month');
     csv = toCsv(['Período', 'Ventas', 'Monto'], buckets.map((b) => [b.label, b.count, formatMoney(b.amount, null, org.orgLocale)]));
     filename = 'ventas-por-periodo.csv';
   } else if (type === 'leads') {
     const leads = await listLeads(db, { orgId: org.orgId, from: range.from, to: range.to, limit: 2000 });
-    const buckets = groupLeadsBySource(leads.items.map((l) => ({ source: l.source, resolution: l.resolution })));
+    const buckets = groupLeadsBySource(leads.items.filter((l) => matches(l.ownerId) && (!filters.canal || l.channel === filters.canal)).map((l) => ({ source: l.source, resolution: l.resolution })));
     csv = toCsv(['Fuente', 'Leads', 'Ya eran clientes'], buckets.map((b) => [b.source, b.count, b.matched]));
     filename = 'leads-por-fuente.csv';
   } else if (type === 'desempeno') {
-    const [members, opps] = await Promise.all([
-      listMembers(db, org.orgId),
+    const [opps, tasks] = await Promise.all([
       listOpportunities(db, { orgId: org.orgId, closedFrom: range.from, closedTo: range.to, limit: 2000 }),
+      listTasks(db, { orgId: org.orgId, status: 'done', completedFrom: range.from, completedTo: range.to, limit: 2000 }),
     ]);
-    const active = members.filter((m) => m.status === 'active');
-    const rows = buildPerformance(active.map((m) => ({ id: m.userId })), opps.filter((o) => o.status !== 'open').map((o) => ({ ownerId: o.ownerId, status: o.status as 'won' | 'lost', amount: o.amount })), []);
-    const nameOf = (id: string) => active.find((m) => m.userId === id)?.fullName ?? active.find((m) => m.userId === id)?.email ?? 'Sin nombre';
-    csv = toCsv(['Persona', 'Ganadas', 'Monto ganado', 'Perdidas', 'Tasa de conversión'],
-      rows.map((r) => [nameOf(r.personId), r.won, formatMoney(r.wonAmount, null, org.orgLocale), r.lost, r.winRate === null ? '—' : `${r.winRate}%`]));
+    const rows = buildPerformance(scope.people.map((m) => ({ id: m.userId })),
+      opps.filter((o) => o.status !== 'open' && matches(o.ownerId)).map((o) => ({ ownerId: o.ownerId, status: o.status as 'won' | 'lost', amount: o.amount })),
+      tasks.filter((t) => matches(t.assigneeId)).map((t) => ({ assigneeId: t.assigneeId })));
+    csv = toCsv(['Persona', 'Equipo', 'Ganadas', 'Monto ganado', 'Perdidas', 'Tasa de conversión', 'Tareas completadas'],
+      rows.map((r) => [scope.nameOf(r.personId), scope.teamName(scope.teamOf.get(r.personId) ?? null), r.won, formatMoney(r.wonAmount, null, org.orgLocale), r.lost, r.winRate === null ? '—' : `${r.winRate}%`, r.tasksCompleted]));
     filename = 'desempeno.csv';
   } else if (type === 'widget') {
-    // Los mismos filtros que la página /reports/widget: lo que se descarga es lo que se ve.
+    // Los mismos filtros que la pestaña Widget de WhatsApp: lo que se descarga es lo que se ve.
     const raw: Record<string, string | string[]> = {};
     for (const k of new Set(sp.keys())) { const all = sp.getAll(k); raw[k] = all.length > 1 ? all : all[0]!; }
     const filters = parseWidgetFilters(raw);

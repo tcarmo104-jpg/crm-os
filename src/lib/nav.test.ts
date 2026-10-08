@@ -25,7 +25,7 @@ describe('navegación', () => {
     const soon = NAV_GROUPS.find((g) => g.key === 'soon')!;
     expect(soon.items.every((i) => !i.href && i.phase)).toBe(true);
     for (const g of NAV_GROUPS.filter((x) => x.key !== 'soon')) expect(g.items.every((i) => i.href), g.key).toBe(true);
-    expect(NAV_GROUPS.map((g) => g.key)).toEqual(['main', 'commercial', 'analytics', 'settings', 'soon']);
+    expect(NAV_GROUPS.map((g) => g.key)).toEqual(['main', 'commercial', 'settings', 'soon']);
   });
   it('las migas de pan ubican cualquier ruta en su grupo y módulo (el más específico gana)', () => {
     expect(locate('/inbox')).toMatchObject({ group: { label: 'Principal' }, item: { label: 'Inbox' } });
@@ -33,8 +33,13 @@ describe('navegación', () => {
     expect(locate('/settings/connections/whatsapp/x')).toMatchObject({ group: { label: 'Configuración' }, item: { label: 'Conexiones' } });
     expect(locate('/')).toMatchObject({ group: null, item: { label: 'Hoy' } });
     expect(locate('/ruta-que-no-existe')).toEqual({ group: null, item: null });
-    // una subruta con su propio módulo gana sobre la ruta padre
-    expect(locate('/reports/widget')).toMatchObject({ group: { label: 'Analítica' }, item: { label: 'Widget de WhatsApp' } });
-    expect(locate('/reports')).toMatchObject({ item: { label: 'Reportes' } });
+    // Analítica es UNA entrada: todas sus pestañas se ubican en ella
+    for (const r of ['/analytics', '/analytics/embudo', '/analytics/desempeno', '/analytics/reportes', '/analytics/widget'])
+      expect(locate(r), r).toMatchObject({ group: { label: 'Principal' }, item: { label: 'Analítica' } });
+  });
+  it('Analítica ya no tiene una entrada por módulo (las rutas viejas redirigen)', () => {
+    const hrefs = all.map((i) => i.href);
+    for (const old of ['/dashboard', '/funnel', '/performance', '/reports', '/reports/widget']) expect(hrefs).not.toContain(old);
+    expect(all.filter((i) => i.href?.startsWith('/analytics'))).toHaveLength(1);
   });
 });

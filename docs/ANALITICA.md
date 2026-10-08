@@ -45,3 +45,57 @@ Los permisos `reports:read` / `reports:export` ya estaban definidos y asignados 
 - 15 comprobaciones en navegador real con datos sembrados de verdad: oportunidades en varias etapas,
   ganadas, perdidas, una venta real (cotización → aceptada → venta → entregada), y leads de varias fuentes.
   Se confirmó que el botón «Exportar CSV» realmente descarga un archivo válido.
+
+## Una sola pantalla con pestañas (`/analytics`)
+
+**Qué cambió para quien la usa.** Las 5 páginas de Analítica (Dashboard, Embudo, Desempeño, Reportes y Widget de
+WhatsApp) son ahora 5 pestañas de una sola pantalla, con **una sola entrada en el menú** («Analítica», en
+Principal). Arriba quedan siempre los mismos filtros —período, asesor, equipo, canal—, que se aplican al instante
+a la pestaña activa y viajan al cambiar de pestaña. Si un filtro no aplica en una pestaña (por ejemplo el período
+en el Embudo, que es una foto de hoy), se ve atenuado y una nota dice por qué. Las rutas viejas redirigen con sus
+filtros (`/dashboard` → `/analytics`, `/funnel` → `/analytics/embudo`, etc.), así que no se rompe ningún marcador.
+
+**Es un cambio de presentación, no de datos.** Cada pestaña hace las mismas consultas y los mismos cálculos de
+`lib/analytics.ts` que hacía su página. El permiso sigue siendo `reports:read` (ver) y `reports:export` (botón de
+CSV y ruta de exportación), y cada rol sigue viendo solo lo que ya veía (lo decide la base de datos). Tres
+mejoras de comportamiento, a propósito y a la vista:
+- Embudo, Desempeño y Reportes **ahora respetan los filtros de asesor y equipo** (antes solo el Dashboard).
+- La **exportación a CSV respeta los mismos filtros** que se ven en pantalla (antes ignoraba asesor/equipo/canal).
+  El CSV de desempeño trae además el equipo y las tareas completadas.
+- El texto del embudo dice «equivale al X% de la etapa anterior» en vez de «X% pasó»: como compara cuántas hay
+  HOY en cada etapa, puede pasar de 100%, y «pasó el 133%» era imposible de entender.
+
+**Diseño.** Tarjetas con ícono de color y variación contra el período anterior (verde/rojo, gris si no cambió),
+gráficos de área para tendencias, donas para distribuciones (canal, fuente, equipo, valor por etapa), columnas
+para ventas por mes y por persona, un embudo que se angosta etapa a etapa y un ranking por persona con avatar.
+**Sin librería nueva**: los gráficos son SVG propios dibujados en el servidor (no agregan JavaScript), con su dato
+exacto como tooltip, animación de entrada que respeta «reducir movimiento», y modo oscuro con los colores del
+proyecto. Los ejes usan cifras redondas (y enteras para conteos); las cifras largas se achican para caber.
+
+**Cambiar de pestaña o de filtro no recarga la página** (cliente de Next, dentro de una transición de React: el
+contenido actual se atenúa con una barra de progreso hasta que llega el nuevo).
+
+## Cuatro errores reales encontrados con el navegador (ninguna prueba automática los veía)
+1. **El más serio: dos filtros cambiados seguidos podían mostrar datos que no correspondían a la URL** (1 de cada
+   ~40 veces: la URL decía «Medellín + WhatsApp» y los datos eran solo de «Medellín», y así quedaba). Causa: dos
+   navegaciones del router en paralelo, y la primera, resuelta tarde, pisaba a la segunda. Solución de diseño:
+   nunca hay dos en vuelo (`navRequest`/`navCommitted` en `lib/analytics.ts`, con pruebas); la barra muestra al
+   instante lo último que se pidió y la pantalla va directo a eso. Comprobado: 60 de 60.
+2. **A veces el router de Next deja sin terminar una navegación que solo cambia `?filtros`** (~10–20% en este
+   entorno). No es de esta pantalla: pasa igual en el filtro de **Leads**, que no se tocó. Se descartó con
+   pruebas el servidor, el prefetch, las fuentes, el navegador y la compresión; la causa interna de Next no quedó
+   identificada. Analítica tiene una red de seguridad: si a los 2,5 s no llegó, reintenta; a los 6 s, carga la
+   página completa. Comprobado: 40 de 40 llegan con los datos correctos. **Leads y Oportunidades siguen sin esa
+   protección** (no se tocaron).
+3. Visuales: cifras de las tarjetas que se cortaban, eje «0,25 leads», eje de ventas con fechas internas
+   («2026-10-01», heredado del Dashboard), cifra central de la dona que se salía del aro, barras del ranking
+   desalineadas entre filas y, en móvil, el monto del ranking partido en dos líneas.
+4. Al pasar el filtro en un `ref` durante el render, la red de seguridad creía que una navegación suspendida ya
+   había llegado y nunca actuaba: las refs ahora se actualizan solo al confirmarse.
+
+## Verificación de la pantalla única
+- Unitarias: lógica de pestañas, filtros, cola de navegación, dona, ejes e iniciales (`lib/analytics.test.ts`).
+- Integración contra PostgREST real: canales del filtro según el rol, y el alcance compartido por pestañas y CSV.
+- Navegador real (build de producción), con datos sembrados por los caminos reales: KPIs contra la base de
+  datos, cambio de pestaña sin recarga, filtros que viajan, atrás/adelante, clics rápidos, los 3 CSV, rutas viejas,
+  una vendedora y un jefe viendo solo lo suyo, botón de exportar según permiso, móvil y modo oscuro.

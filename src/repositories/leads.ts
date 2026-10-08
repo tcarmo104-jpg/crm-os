@@ -51,6 +51,12 @@ export async function listLeadSources(db: ServerSupabase, orgId: string): Promis
   return [...new Set(rows.map((r) => r.source))].sort();
 }
 
+/** Los canales por los que han llegado leads (para el filtro «Canal» de Analítica). RLS decide qué se ve. */
+export async function listLeadChannels(db: ServerSupabase, orgId: string): Promise<string[]> {
+  const rows = unwrap(await db.from('leads').select('channel').eq('org_id', orgId).not('channel', 'is', null).order('received_at', { ascending: false }).limit(2000)) as unknown as { channel: string }[];
+  return [...new Set(rows.map((r) => r.channel))].sort();
+}
+
 export interface CreateLeadResult { leadId: string; customerId: string; outcome: string; deduplicated: boolean }
 /** Crea un lead a mano, reutilizando la MISMA resolución de identidad que la importación CSV y la API pública. */
 export async function createLead(db: ServerSupabase, orgId: string, row: Record<string, unknown>): Promise<CreateLeadResult> {

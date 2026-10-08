@@ -261,3 +261,137 @@ describe('formatDuration', () => {
     expect(formatDuration(185 * 60_000)).toBe('3 h 5 min'); expect(formatDuration(120 * 60_000)).toBe('2 h'); expect(formatDuration((52 * 60) * 60_000)).toBe('2 d 4 h');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Pantalla única de Analítica (pestañas)
+// ---------------------------------------------------------------------------
+import { ANALYTICS_TABS, donutSegments, initials, personTeamMatcher, tabHref, tabOf } from './analytics';
+
+describe('pestañas de Analítica', () => {
+  it('cada ruta cae en su pestaña (la más específica gana; lo demás es el Resumen)', () => {
+    expect(tabOf('/analytics').key).toBe('resumen');
+    expect(tabOf('/analytics/').key).toBe('resumen');
+    expect(tabOf('/analytics/embudo').key).toBe('embudo');
+    expect(tabOf('/analytics/widget').key).toBe('widget');
+    expect(tabOf('/analytics/desempeno/x').key).toBe('desempeno');
+  });
+  it('claves y rutas únicas; el Resumen aplica todos los filtros globales', () => {
+    expect(new Set(ANALYTICS_TABS.map((t) => t.key)).size).toBe(ANALYTICS_TABS.length);
+    expect(new Set(ANALYTICS_TABS.map((t) => t.href)).size).toBe(ANALYTICS_TABS.length);
+    expect(tabOf('/analytics').applies).toEqual(['periodo', 'personas', 'equipos', 'canal']);
+  });
+  it('una pestaña donde un filtro no aplica lo explica', () => {
+    for (const t of ANALYTICS_TABS) if (t.applies.length < 4) expect(t.hint).toBeTruthy();
+    expect(tabOf('/analytics/embudo').applies).not.toContain('periodo');
+  });
+  it('al cambiar de pestaña viajan los filtros globales (también los múltiples) y no los propios de otra pestaña', () => {
+    const sp = new URLSearchParams('periodo=last_30&personas=u1&personas=u2&canal=web&pipeline=p9&por=campana&campana=verano');
+    const href = tabHref(tabOf('/analytics/reportes'), sp);
+    expect(href.startsWith('/analytics/reportes?')).toBe(true);
+    const out = new URLSearchParams(href.split('?')[1]);
+    expect(out.getAll('personas')).toEqual(['u1', 'u2']);
+    expect(out.get('periodo')).toBe('last_30'); expect(out.get('canal')).toBe('web');
+    expect(out.has('pipeline')).toBe(false); expect(out.has('por')).toBe(false); expect(out.has('campana')).toBe(false);
+  });
+  it('sin filtros, el enlace es la ruta limpia; también acepta los searchParams de una página', () => {
+    expect(tabHref(tabOf('/analytics/embudo'), new URLSearchParams())).toBe('/analytics/embudo');
+    expect(tabHref(tabOf('/analytics'), { periodo: 'today', equipos: ['t1'], desde: '' })).toBe('/analytics?periodo=today&equipos=t1');
+  });
+});
+
+describe('personTeamMatcher: el filtro de personas/equipos que comparten pestañas y CSV', () => {
+  const teamOf = new Map<string, string | null>([['u1', 't1'], ['u2', 't2'], ['u3', null]]);
+  it('sin filtros pasa todo, incluso sin dueño', () => { expect(personTeamMatcher({ personas: [], equipos: [] }, teamOf)(null)).toBe(true); });
+  it('por persona y por equipo; sin dueño no pasa un filtro activo', () => {
+    const m = personTeamMatcher({ personas: [], equipos: ['t1'] }, teamOf);
+    expect([m('u1'), m('u2'), m('u3'), m(null)]).toEqual([true, false, false, false]);
+    const p = personTeamMatcher({ personas: ['u2'], equipos: [] }, teamOf);
+    expect([p('u1'), p('u2')]).toEqual([false, true]);
+  });
+  it('ambos a la vez se combinan (Y)', () => { expect(personTeamMatcher({ personas: ['u2'], equipos: ['t1'] }, teamOf)('u2')).toBe(false); });
+});
+
+describe('donutSegments', () => {
+  it('porcentajes y posición de cada segmento, de mayor a menor', () => {
+    const s = donutSegments([{ label: 'web', value: 1 }, { label: 'whatsapp', value: 3 }]);
+    expect(s.map((x) => [x.label, x.pct, x.offset])).toEqual([['whatsapp', 75, 0], ['web', 25, 75]]);
+  });
+  it('los ceros no se dibujan; sin datos, sin segmentos', () => { expect(donutSegments([{ label: 'a', value: 0 }])).toEqual([]); });
+  it('si hay demasiados grupos, los más chicos se juntan en «Otros» (y el total se conserva)', () => {
+    const rows = Array.from({ length: 9 }, (_, i) => ({ label: `c${i}`, value: 10 - i }));
+    const s = donutSegments(rows, 6);
+    expect(s).toHaveLength(6); expect(s[5]!.label).toBe('Otros');
+    expect(s.reduce((t, x) => t + x.value, 0)).toBe(rows.reduce((t, r) => t + r.value, 0));
+    expect(Math.round(s.reduce((t, x) => t + x.pct, 0))).toBe(100);
+  });
+});
+
+describe('initials', () => {
+  it('nombre, nombre compuesto y correo', () => {
+    expect(initials('Laura Gómez')).toBe('LG'); expect(initials('Ana María de la Cruz')).toBe('AC');
+    expect(initials('camilo@arkos.test')).toBe('C'); expect(initials('')).toBe('?');
+  });
+});
+
+import { NAV_IDLE, navCommitted, navRequest, readGlobalFilters, withGlobalFilters } from './analytics';
+
+describe('barra de filtros: construir la URL y no perder cambios seguidos', () => {
+  it('escribe solo lo que no es por defecto, y conserva lo propio de la pestaña', () => {
+    const base = new URLSearchParams('pipeline=p2&por=campana&canal=web&personas=u9');
+    const f = { ...readGlobalFilters(new URLSearchParams()), equipos: ['t1', 't2'], periodo: 'last_7' as const };
+    const out = new URLSearchParams(withGlobalFilters(base, f));
+    expect(out.get('pipeline')).toBe('p2'); expect(out.get('por')).toBe('campana');
+    expect(out.getAll('equipos')).toEqual(['t1', 't2']); expect(out.get('periodo')).toBe('last_7');
+    expect(out.has('canal')).toBe(false); expect(out.has('personas')).toBe(false);   // se reemplazaron por los nuevos (vacíos)
+  });
+  it('«este mes» no se escribe; las fechas solo con «personalizado»', () => {
+    const d = readGlobalFilters(new URLSearchParams());
+    expect(withGlobalFilters(new URLSearchParams(), { ...d, desde: '2026-01-01' })).toBe('');
+    expect(withGlobalFilters(new URLSearchParams(), { ...d, periodo: 'custom', desde: '2026-01-01', hasta: '2026-01-31' })).toBe('periodo=custom&desde=2026-01-01&hasta=2026-01-31');
+  });
+  it('readGlobalFilters: un período inválido cae en «este mes»', () => {
+    expect(readGlobalFilters(new URLSearchParams('periodo=xx&personas=a&personas=b'))).toMatchObject({ periodo: 'this_month', personas: ['a', 'b'] });
+  });
+});
+
+describe('cola de navegación: nunca dos navegaciones en paralelo', () => {
+  it('sin nada en vuelo, navega de inmediato', () => {
+    expect(navRequest(NAV_IDLE, '/a?x=1')).toEqual({ queue: { inFlight: '/a?x=1', queued: null }, navigate: '/a?x=1' });
+  });
+  it('con una en vuelo, NO lanza otra: guarda solo la última pedida (los intermedios se saltan)', () => {
+    let q = navRequest(NAV_IDLE, '/a?eq=1').queue;
+    let r = navRequest(q, '/a?eq=1&canal=w'); expect(r.navigate).toBeNull(); q = r.queue;
+    r = navRequest(q, '/a?eq=1&canal=w&periodo=7'); expect(r.navigate).toBeNull();
+    expect(r.queue).toEqual({ inFlight: '/a?eq=1', queued: '/a?eq=1&canal=w&periodo=7' });
+  });
+  it('al confirmarse la que estaba en vuelo, navega a la última pedida; al confirmarse esa, queda libre', () => {
+    let q: typeof NAV_IDLE = { inFlight: '/a?eq=1', queued: '/a?eq=1&canal=w' };
+    const r1 = navCommitted(q, '/a?eq=1'); expect(r1).toEqual({ queue: { inFlight: '/a?eq=1&canal=w', queued: null }, navigate: '/a?eq=1&canal=w', external: false });
+    q = r1.queue;
+    expect(navCommitted(q, '/a?eq=1&canal=w')).toEqual({ queue: NAV_IDLE, navigate: null, external: false });
+  });
+  it('volver a pedir lo que ya está en vuelo no encola nada', () => {
+    expect(navRequest({ inFlight: '/a', queued: '/b' }, '/a').queue).toEqual({ inFlight: '/a', queued: null });
+  });
+  it('«atrás» del navegador (o la carga inicial): se adopta y se abandona lo pendiente', () => {
+    expect(navCommitted(NAV_IDLE, '/b')).toEqual({ queue: NAV_IDLE, navigate: null, external: true });
+    expect(navCommitted({ inFlight: '/a?x=2', queued: '/a?x=3' }, '/b')).toEqual({ queue: NAV_IDLE, navigate: null, external: true });
+  });
+});
+
+import { axisScale } from './analytics';
+describe('axisScale: marcas del eje legibles', () => {
+  it('conteos chicos: pasos enteros (nunca 0,25 leads)', () => {
+    expect(axisScale([0, 1, 1])).toEqual({ max: 4, step: 1 });
+    expect(axisScale([3, 5])).toEqual({ max: 8, step: 2 });
+    expect(axisScale([37])).toEqual({ max: 40, step: 10 });
+  });
+  it('montos: pasos redondos aunque sean enteros (nada de «US$ 1.445.850»)', () => {
+    expect(axisScale([1927800, 0])).toEqual({ max: 2000000, step: 500000 });
+    expect(axisScale([12450000])).toEqual({ max: 20000000, step: 5000000 });
+  });
+  it('decimales y sin datos', () => {
+    expect(axisScale([0.3])).toEqual({ max: 0.4, step: 0.1 });
+    expect(axisScale([])).toEqual({ max: 4, step: 1 });
+  });
+});

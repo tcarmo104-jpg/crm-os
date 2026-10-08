@@ -26,6 +26,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { key: 'opportunities', label: 'Oportunidades', icon: 'target', href: '/opportunities' },
       { key: 'tasks', label: 'Tareas', icon: 'check', href: '/tasks' },
       { key: 'activities', label: 'Actividades', icon: 'pin', href: '/activities' },
+      // Una sola entrada: Resumen, Embudo, Desempeño, Reportes y Widget de WhatsApp son pestañas de /analytics.
+      { key: 'analytics', label: 'Analítica', icon: 'chart', href: '/analytics' },
     ],
   },
   {
@@ -39,16 +41,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { key: 'cases', label: 'Casos de postventa', icon: 'shield', href: '/cases' },
       { key: 'sequences', label: 'Secuencias', icon: 'repeat', href: '/sequences' },
       { key: 'automations', label: 'Automatizaciones', icon: 'tool', href: '/automations' },
-    ],
-  },
-  {
-    key: 'analytics', label: 'Analítica',
-    items: [
-      { key: 'dashboard', label: 'Dashboard', icon: 'chart', href: '/dashboard' },
-      { key: 'funnel', label: 'Embudo', icon: 'funnel', href: '/funnel' },
-      { key: 'performance', label: 'Desempeño', icon: 'chart', href: '/performance' },
-      { key: 'reports', label: 'Reportes', icon: 'file', href: '/reports' },
-      { key: 'widget-metrics', label: 'Widget de WhatsApp', icon: 'chat', href: '/reports/widget' },
     ],
   },
   {
