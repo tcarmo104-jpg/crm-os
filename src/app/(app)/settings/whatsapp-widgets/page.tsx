@@ -27,6 +27,7 @@ export default async function WhatsappWidgetsPage() {
       {flash ? <Notice kind={flash.kind}>{flash.message}</Notice> : null}
 
       <div className="flt-bar">
+        <Link href="/settings/whatsapp-widgets/fields" className="btn btn-ghost">Catálogo de campos</Link>
         <Link href="/settings/whatsapp-widgets/new" className="btn btn-primary" style={{ marginLeft: 'auto' }}>+ Nuevo widget</Link>
       </div>
 

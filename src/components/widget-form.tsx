@@ -3,6 +3,7 @@
 import { useActionState, useState } from 'react';
 import { initialActionState, type ActionState } from '@/lib/action-state';
 import { POSITION_LABEL, SIZE_LABEL, WIDGET_POSITIONS, WIDGET_SIZES } from '@/lib/widgets';
+import { MESSAGE_TEMPLATE_VARIABLES } from '@/lib/widget-fields';
 import { Feedback, Field } from './forms';
 import { SubmitButton } from './ui';
 import type { WidgetRow } from '@/repositories/widgets';
@@ -76,6 +77,17 @@ export function WidgetForm({
 
       <Field label="Región (opcional)" name="region" defaultValue={initial?.region ?? ''} maxLength={80} placeholder="Medellín" required={false}
         hint="La sede o región de la web donde se instala este widget. Las reglas de distribución con esa región asignan sus contactos al equipo que corresponda. El visitante no ve ni escribe nada." />
+
+      <div className="field">
+        <label className="label" htmlFor="wf-template">Mensaje a WhatsApp (opcional)</label>
+        <textarea id="wf-template" name="messageTemplate" className="input" rows={3} maxLength={1000} defaultValue={initial?.messageTemplate ?? ''}
+          placeholder={'Hola, soy {{nombre}}. {{mensaje}}'} />
+        <p className="hint">
+          El mensaje con el que llega el visitante a WhatsApp. Si lo dejas vacío, se usa el formato de siempre. Variables disponibles:{' '}
+          {MESSAGE_TEMPLATE_VARIABLES.map((v) => <code key={v} style={{ marginRight: 6 }}>{`{{${v}}}`}</code>)}
+          — una intención (más abajo) puede tener su propio mensaje y usar estas mismas variables.
+        </p>
+      </div>
 
       <SubmitButton pendingLabel="Guardando…">{mode === 'create' ? 'Crear widget' : 'Guardar cambios'}</SubmitButton>
     </form>

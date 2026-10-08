@@ -14,12 +14,15 @@ const schema = z.object({
   domains: z.string().trim().min(1, 'Escribe al menos un dominio donde se va a instalar.'),
   // Región de la sede donde se instala; las reglas de distribución la comparan. Opcional: vacía = sin región.
   region: z.preprocess((v) => (v === undefined || (typeof v === 'string' && v.trim() === '') ? null : v), z.string().trim().max(80, 'La región puede tener máximo 80 caracteres.').nullable()),
+  // Plantilla por defecto del mensaje a WhatsApp (punto 11 del refactor). Vacía = sigue igual que hoy
+  // ("Hola, soy {{nombre}}. {{mensaje}}"), armado por `buildPrefilledMessage`.
+  messageTemplate: z.preprocess((v) => (v === undefined || (typeof v === 'string' && v.trim() === '') ? null : v), z.string().trim().max(1000).nullable()),
 });
 
 function toInput(d: z.infer<typeof schema>): repo.WidgetInput {
   const domains = normalizeDomainList(d.domains);
   if (domains.length === 0) throw new UserFacingError('Escribe al menos un dominio válido.');
-  return { channelId: d.channelId, name: d.name, buttonText: d.buttonText, initialMessage: d.initialMessage ?? null, position: d.position, showText: d.showText, color: d.color, size: d.size, allowedDomains: domains, region: d.region };
+  return { channelId: d.channelId, name: d.name, buttonText: d.buttonText, initialMessage: d.initialMessage ?? null, position: d.position, showText: d.showText, color: d.color, size: d.size, allowedDomains: domains, region: d.region, messageTemplate: d.messageTemplate };
 }
 
 export async function createWidget(db: ServerSupabase, orgId: string, input: unknown): Promise<string> {
