@@ -8,7 +8,7 @@ FROM="${1:-1}"
 if [ "$FROM" = "1" ]; then OUT=supabase/setup-all.sql; else OUT="supabase/setup-desde-$(printf %04d "$FROM").sql"; fi
 
 # Primera tabla que crea cada migración: si ya existe, esa migración ya está instalada.
-sentinel() { case "$1" in 6) echo custom_field_definitions;; 7) echo customers;; 8) echo api_keys;; 9) echo pipelines;; 10) echo tasks;; 11) echo products;; 12) echo sales;; 13) echo channels;; 14) echo tags;; 16) echo connection_events;; 17) echo oauth_sessions;; 18) echo message_attachments;; 19) echo attachment_uploads;; 21) echo webhook_stats;; 22) echo provider_apps;; 25) echo sequences;; 26) echo automation_rules;; 32) echo social_comments;; 34) echo whatsapp_widgets;; 35) echo assignment_rules;; 36) echo conversation_closures;; 37) echo widget_fields;; *) echo "";; esac; }
+sentinel() { case "$1" in 6) echo custom_field_definitions;; 7) echo customers;; 8) echo api_keys;; 9) echo pipelines;; 10) echo tasks;; 11) echo products;; 12) echo sales;; 13) echo channels;; 14) echo tags;; 16) echo connection_events;; 17) echo oauth_sessions;; 18) echo message_attachments;; 19) echo attachment_uploads;; 21) echo webhook_stats;; 22) echo provider_apps;; 25) echo sequences;; 26) echo automation_rules;; 32) echo social_comments;; 34) echo whatsapp_widgets;; 35) echo assignment_rules;; 36) echo conversation_closures;; 37) echo widget_fields;; 39) echo widget_default_fields;; *) echo "";; esac; }
 
 {
   echo "-- ============================================================================="
@@ -116,6 +116,11 @@ sentinel() { case "$1" in 6) echo custom_field_definitions;; 7) echo customers;;
     if [ "$FROM" -ge 38 ]; then
       echo "  if to_regclass('public.widget_options') is null then"
       echo "    raise exception 'FALTA la migración 0037 (campos y opciones del widget). Instala primero setup-desde-0037.sql o avísame.';"
+      echo "  end if;"
+    fi
+    if [ "$FROM" -ge 39 ]; then
+      echo "  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'whatsapp_widgets' and column_name = 'business_hours') then"
+      echo "    raise exception 'FALTA la migración 0038 (panel del widget: horario y asesor). Instala primero setup-desde-0038.sql o avísame.';"
       echo "  end if;"
     fi
     if [ "$FROM" = "23" ]; then

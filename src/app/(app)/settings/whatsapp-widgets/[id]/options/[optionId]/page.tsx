@@ -35,7 +35,7 @@ export default async function OptionFieldsPage({ params }: { params: Promise<{ i
       <header className="page-head">
         <p className="small"><Link href={`/settings/whatsapp-widgets/${widgetId}`}>← {widget.name}</Link></p>
         <h1>{option.icon ? `${option.icon} ` : ''}{option.label}</h1>
-        <p className="muted">Qué le preguntamos al visitante cuando elige esta opción, en qué orden, y cuáles son obligatorios.</p>
+        <p className="muted">Preguntas ADICIONALES para cuando el visitante elige esta opción — se suman a los «Campos del formulario» del widget, nunca los reemplazan.</p>
       </header>
       {flash ? <Notice kind={flash.kind}>{flash.message}</Notice> : null}
 
@@ -45,9 +45,9 @@ export default async function OptionFieldsPage({ params }: { params: Promise<{ i
       </section>
 
       <section className="panel" aria-labelledby="opt-fields-title">
-        <div className="panel-head"><h2 id="opt-fields-title">Campos de esta opción</h2></div>
+        <div className="panel-head"><h2 id="opt-fields-title">Preguntas adicionales de esta opción</h2></div>
         {optionFields.length === 0 ? (
-          <p className="muted">Todavía no agregaste ningún campo — el visitante solo verá nombre y WhatsApp (los datos mínimos para contactarlo).</p>
+          <p className="muted">Todavía no agregaste ninguna — el visitante solo responde los «Campos del formulario» generales del widget.</p>
         ) : (
           <div className="table-wrap">
             <table className="table">

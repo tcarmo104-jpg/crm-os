@@ -45,14 +45,14 @@ select t.as_user(:A);
 select t.throws('una franja con un día fuera de 0-6 se rechaza', format('update public.whatsapp_widgets set business_hours = %L where id = %L', '[{"day":7,"from":"09:00","to":"18:00"}]', t.id('widget')), '23514');
 select t.throws('una franja con una hora mal formada se rechaza', format('update public.whatsapp_widgets set business_hours = %L where id = %L', '[{"day":1,"from":"9am","to":"18:00"}]', t.id('widget')), '23514');
 -- Un horario que NO incluye el día de hoy deja el widget "cerrado" ahora mismo, sea la hora que sea.
-update public.whatsapp_widgets set business_hours = jsonb_build_array(jsonb_build_object('day', (extract(dow from now()) + 1)::int % 7, 'from', '00:00', 'to', '23:59')), out_of_hours_message = 'Fuera de horario, te escribimos pronto.' where id = t.id('widget');
+update public.whatsapp_widgets set business_hours = jsonb_build_array(jsonb_build_object('day', (extract(dow from (now() at time zone 'America/Bogota')) + 1)::int % 7, 'from', '00:00', 'to', '23:59')), out_of_hours_message = 'Fuera de horario, te escribimos pronto.' where id = t.id('widget');
 select t.reset();
 select t.ok('con un horario que no cubre hoy, el widget queda cerrado y entrega el mensaje configurado',
   (select not (public.get_widget_config(t.id('widget')) ->> 'isOpen')::boolean and public.get_widget_config(t.id('widget')) ->> 'outOfHoursMessage' = 'Fuera de horario, te escribimos pronto.'));
 
 select t.as_user(:A);
 -- Un horario que SÍ incluye todo el día de hoy: el widget queda abierto.
-update public.whatsapp_widgets set business_hours = jsonb_build_array(jsonb_build_object('day', extract(dow from now())::int, 'from', '00:00', 'to', '23:59')) where id = t.id('widget');
+update public.whatsapp_widgets set business_hours = jsonb_build_array(jsonb_build_object('day', extract(dow from (now() at time zone 'America/Bogota'))::int, 'from', '00:00', 'to', '23:59')) where id = t.id('widget');
 select t.reset();
 select t.ok('con un horario que cubre todo el día de hoy, el widget queda abierto', (select (public.get_widget_config(t.id('widget')) ->> 'isOpen')::boolean));
 select t.as_user(:A); update public.whatsapp_widgets set business_hours = '[]'::jsonb, out_of_hours_message = null where id = t.id('widget'); select t.reset();

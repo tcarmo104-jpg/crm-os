@@ -39,6 +39,18 @@ const SCRIPT = `
   }
   // Mismo formato de siempre cuando no hay una plantilla configurada (ver buildPrefilledMessage en src/lib/widgets.ts).
   function defaultMessage(name, msg) { return 'Hola, soy ' + name.trim() + '. ' + (msg && msg.trim() ? msg.trim() : 'Hola, quiero más información.'); }
+  // Entrega 4: el formulario BASE del widget siempre se pregunta; lo propio de la intención elegida se SUMA
+  // (si repite una clave del base, la de la intención manda para esa clave). Ver mergeWidgetFields en
+  // src/lib/widget-fields.ts — misma lógica, para que las pruebas unitarias cubran el comportamiento real.
+  function mergeFields(base, extra) {
+    var out = (base || []).slice();
+    (extra || []).forEach(function (f) {
+      var i = -1;
+      for (var j = 0; j < out.length; j++) { if (out[j].key === f.key) { i = j; break; } }
+      if (i === -1) out.push(f); else out[i] = f;
+    });
+    return out;
+  }
 
   fetch(origin + '/api/widget/' + widgetId + '/config').then(function (r) { return r.json(); }).then(function (cfg) {
     if (!cfg || !cfg.active) return;
@@ -115,11 +127,12 @@ const SCRIPT = `
     });
   }
 
-  // El formulario: si "opt" es null, es el formulario único de siempre (nombre + teléfono + mensaje libre).
-  // Si viene una intención, usa sus campos propios (con sus etiquetas, obligatoriedad y valores por defecto).
+  // El formulario: siempre pregunta el formulario BASE del widget (cfg.fields); si "opt" trae una intención,
+  // sus preguntas propias se SUMAN. Sin ningún campo configurado en ninguno de los dos, es el formulario único
+  // de siempre (nombre + teléfono + mensaje libre) — así ningún widget existente cambia de comportamiento.
   function showForm(panel, cfg, opt) {
     var body = panel.querySelector('[data-body]');
-    var fields = (opt && opt.fields) || [];
+    var fields = mergeFields(cfg.fields, opt && opt.fields);
     var html = '';
     if (opt) html += '<button type="button" data-back style="align-self:flex-start;background:none;border:0;color:#555;cursor:pointer;padding:0;font:inherit;">← Volver</button>';
     if (!cfg.isOpen && cfg.outOfHoursMessage) html += '<p style="margin:0 0 4px;background:#fff7e6;color:#8a6500;padding:8px 10px;border-radius:8px;">' + esc(cfg.outOfHoursMessage) + '</p>';

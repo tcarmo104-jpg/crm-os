@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { renderMessageTemplate } from './widget-fields';
+import { mergeWidgetFields, renderMessageTemplate, type WidgetConfigField } from './widget-fields';
+
+const f = (key: string, extra: Partial<WidgetConfigField> = {}): WidgetConfigField => ({
+  fieldId: key, key, type: 'text', label: key, placeholder: null, options: [], required: false, defaultValue: null, ...extra,
+});
 
 describe('renderMessageTemplate', () => {
   it('sustituye las variables presentes', () => {
@@ -25,5 +29,22 @@ describe('renderMessageTemplate', () => {
 
   it('una variable que no está en la lista conocida también se sustituye si viene en los valores', () => {
     expect(renderMessageTemplate('{{origen}}', { origen: 'Google Ads' })).toBe('Google Ads');
+  });
+});
+
+describe('mergeWidgetFields: el formulario base + lo propio de la intención elegida (Entrega 4)', () => {
+  it('sin intención (extra vacío), el formulario es solo el base', () => {
+    expect(mergeWidgetFields([f('producto')], [])).toEqual([f('producto')]);
+  });
+  it('las preguntas de la intención se SUMAN al final, no reemplazan el formulario base', () => {
+    expect(mergeWidgetFields([f('empresa')], [f('cantidad')])).toEqual([f('empresa'), f('cantidad')]);
+  });
+  it('si la intención repite una clave del formulario base, la de la intención manda para esa clave (misma posición)', () => {
+    const base = f('producto', { required: false, label: 'Producto' });
+    const override = f('producto', { required: true, label: 'Qué producto quieres' });
+    expect(mergeWidgetFields([base], [override])).toEqual([override]);
+  });
+  it('sin formulario base ni intención, el resultado es un formulario vacío (el script cae al mensaje libre de siempre)', () => {
+    expect(mergeWidgetFields([], [])).toEqual([]);
   });
 });

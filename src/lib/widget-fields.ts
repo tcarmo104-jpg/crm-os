@@ -39,3 +39,23 @@ export function renderMessageTemplate(template: string, values: Partial<Record<s
   const filled = template.replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (_m, key: string) => (values[key.toLowerCase()] ?? '').trim());
   return filled.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
+
+/** Una pregunta del formulario del widget, tal como la entrega `get_widget_config` (0038/0039): tanto una del
+ * formulario base como una propia de una intención tienen esta misma forma. */
+export interface WidgetConfigField {
+  fieldId: string; key: string; type: WidgetFieldType; label: string; placeholder: string | null;
+  options: string[]; required: boolean; defaultValue: string | null;
+}
+
+/** Arquitectura del formulario (Entrega 4): el formulario BASE siempre se pregunta — tenga o no el widget un
+ * menú de intenciones. Si además el visitante elige una intención, sus preguntas propias se SUMAN a las del
+ * formulario base; nunca las reemplazan. Si una intención repite la misma clave que el formulario base (p. ej.
+ * para pedirla con otra etiqueta u obligatoriedad distinta ahí), la de la intención manda para esa clave. */
+export function mergeWidgetFields(base: WidgetConfigField[], extra: WidgetConfigField[]): WidgetConfigField[] {
+  const out = base.slice();
+  for (const f of extra) {
+    const i = out.findIndex((b) => b.key === f.key);
+    if (i === -1) out.push(f); else out[i] = f;
+  }
+  return out;
+}
