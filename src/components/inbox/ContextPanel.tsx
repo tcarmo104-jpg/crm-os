@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { CustomerFiles } from './CustomerFiles';
 import type { AttachmentRow } from '@/lib/types';
 
@@ -106,10 +107,16 @@ export function ContextPanel({
         <Section title="Origen" open={false}>
           <dl className="ib-kv">
             <dt>Llegó por</dt><dd>Widget de WhatsApp{ctx.widgetOrigin.widgetName ? ` («${ctx.widgetOrigin.widgetName}»)` : ''}</dd>
+            {ctx.widgetOrigin.optionLabel ? <><dt>Eligió</dt><dd>{ctx.widgetOrigin.optionLabel}</dd></> : null}
             {ctx.widgetOrigin.pageUrl ? <><dt>Página</dt><dd><a href={ctx.widgetOrigin.pageUrl} target="_blank" rel="noreferrer">{ctx.widgetOrigin.domain ?? ctx.widgetOrigin.pageUrl}</a></dd></> : null}
             {ctx.widgetOrigin.productUrl ? <><dt>Producto</dt><dd><a href={ctx.widgetOrigin.productUrl} target="_blank" rel="noreferrer">Ver producto</a></dd></> : null}
             {ctx.widgetOrigin.utmSource ? <><dt>Fuente</dt><dd>{ctx.widgetOrigin.utmSource}</dd></> : null}
             {ctx.widgetOrigin.utmCampaign ? <><dt>Campaña</dt><dd>{ctx.widgetOrigin.utmCampaign}</dd></> : null}
+            {ctx.widgetOrigin.fieldValues && Object.keys(ctx.widgetOrigin.fieldValues).length > 0
+              ? Object.entries(ctx.widgetOrigin.fieldValues).map(([k, v]) => (
+                  <Fragment key={k}><dt>{k}</dt><dd>{v || '—'}</dd></Fragment>
+                ))
+              : null}
           </dl>
         </Section>
       ) : null}

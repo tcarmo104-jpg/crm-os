@@ -271,4 +271,16 @@ describe('ficha del cliente: oportunidades abiertas y origen del widget (Fase 2)
     const ctx = await loadCustomerContext(s1, org, ids.carlos);
     expect(ctx!.widgetOrigin).toBeNull();
   });
+
+  it('si eligió una intención del menú (Entrega 2), se ve cuál y las respuestas de sus campos', async () => {
+    const custId = await mkCustomer(a, 'Gina Widget', '+573001110299');
+    sql(`insert into leads (org_id, customer_id, source, channel, resolution, raw_payload) values ('${org}', '${custId}', 'widget_web', 'whatsapp', 'created',
+      '{"widget_name":"Web principal","option_label":"Comprar","field_values":{"producto":"Camisetas","cantidad":"10"}}'::jsonb)`);
+
+    const origin = await getWidgetOrigin(a, custId);
+    expect(origin).toMatchObject({ optionLabel: 'Comprar', fieldValues: { producto: 'Camisetas', cantidad: '10' } });
+
+    const ctx = await loadCustomerContext(a, org, custId);
+    expect(ctx!.widgetOrigin).toMatchObject({ optionLabel: 'Comprar', fieldValues: { producto: 'Camisetas', cantidad: '10' } });
+  });
 });
