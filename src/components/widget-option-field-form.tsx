@@ -51,11 +51,42 @@ export function AddOptionFieldForm({
         <Field label="Etiqueta propia (opcional)" name="labelOverride" maxLength={80} required={false} hint="Si lo dejas vacío, usa la del catálogo." />
         <Field label="Placeholder propio (opcional)" name="placeholderOverride" maxLength={160} required={false} />
       </div>
+      <Field label="Valor por defecto (opcional)" name="defaultValue" maxLength={200} required={false} hint="Viene precargado en el formulario; el visitante lo puede cambiar." />
       <label className="inline-form" style={{ gap: 8 }}>
         <input type="checkbox" name="required" />
         Obligatorio en esta intención
       </label>
       <div><SubmitButton pendingLabel="Agregando…">Agregar campo</SubmitButton></div>
+    </form>
+  );
+}
+
+/**
+ * Editar un campo YA agregado a esta intención (en vez de borrarlo y volverlo a agregar). Se postea
+ * directo a una acción simple (no `useActionState`): el mismo patrón de los botones ↑/↓/Quitar de la tabla.
+ */
+export function EditOptionFieldForm({
+  widgetId, optionId, field, action,
+}: {
+  widgetId: string; optionId: string;
+  field: { fieldId: string; catalogLabel: string; labelOverride: string | null; placeholderOverride: string | null; defaultValue: string | null; required: boolean };
+  action: (fd: FormData) => Promise<void>;
+}) {
+  return (
+    <form action={action} className="stack" noValidate>
+      <input type="hidden" name="widgetId" value={widgetId} />
+      <input type="hidden" name="optionId" value={optionId} />
+      <input type="hidden" name="fieldId" value={field.fieldId} />
+      <div className="grid-2">
+        <Field label="Etiqueta propia (opcional)" name="labelOverride" defaultValue={field.labelOverride ?? ''} maxLength={80} required={false} hint={`Si lo dejas vacío, usa «${field.catalogLabel}» del catálogo.`} />
+        <Field label="Placeholder propio (opcional)" name="placeholderOverride" defaultValue={field.placeholderOverride ?? ''} maxLength={160} required={false} />
+      </div>
+      <Field label="Valor por defecto (opcional)" name="defaultValue" defaultValue={field.defaultValue ?? ''} maxLength={200} required={false} hint="Viene precargado en el formulario; el visitante lo puede cambiar." />
+      <label className="inline-form" style={{ gap: 8 }}>
+        <input type="checkbox" name="required" defaultChecked={field.required} />
+        Obligatorio en esta intención
+      </label>
+      <div><SubmitButton pendingLabel="Guardando…">Guardar cambios</SubmitButton></div>
     </form>
   );
 }

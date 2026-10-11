@@ -58,6 +58,7 @@ export default async function OptionFieldsPage({ params }: { params: Promise<{ i
                     <td>{f.labelOverride ?? f.catalogLabel} <span className="small muted">({f.key})</span></td>
                     <td>{f.required ? 'Sí' : 'No'}</td>
                     <td className="cell-actions">
+                      <Link href={`/settings/whatsapp-widgets/${widgetId}/options/${optionId}/fields/${f.fieldId}`} className="btn btn-ghost btn-sm">Editar</Link>
                       <form action={moveOptionFieldAction}>
                         <input type="hidden" name="widgetId" value={widgetId} /><input type="hidden" name="optionId" value={optionId} />
                         <input type="hidden" name="fieldId" value={f.fieldId} /><input type="hidden" name="dir" value="up" />

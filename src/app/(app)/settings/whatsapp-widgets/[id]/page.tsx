@@ -75,6 +75,7 @@ export default async function EditWidgetPage({ params }: { params: Promise<{ id:
                     <td>{f.labelOverride ?? f.catalogLabel} <span className="small muted">({f.key})</span></td>
                     <td>{f.required ? 'Sí' : 'No'}</td>
                     <td className="cell-actions">
+                      <Link href={`/settings/whatsapp-widgets/${widget.id}/default-fields/${f.fieldId}`} className="btn btn-ghost btn-sm">Editar</Link>
                       <form action={moveDefaultFieldAction}>
                         <input type="hidden" name="widgetId" value={widget.id} /><input type="hidden" name="fieldId" value={f.fieldId} /><input type="hidden" name="dir" value="up" />
                         <button className="btn btn-ghost btn-sm" type="submit" disabled={idx === 0} aria-label="Subir">↑</button>
